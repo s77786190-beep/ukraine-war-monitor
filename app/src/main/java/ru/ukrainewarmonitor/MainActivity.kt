@@ -443,16 +443,16 @@ private fun readTelegramPublic(channel: String, label: String, side: String): Li
         .findAll(html).toList()
     return blocks.mapNotNull { match ->
         val block = match.value
-        val post = Regex("""data-post="([^"]+)"""").find(block)?.groupValues?.get(1) ?: return@mapNotNull null
+        val post = Regex("data-post=\\\"([^\\\"]+)\\\"").find(block)?.groupValues?.get(1) ?: return@mapNotNull null
         val rawText = Regex("""<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
             .find(block)?.groupValues?.get(1) ?: ""
-        val plain = rawText.replace(Regex("""<br\\s*/?>""", RegexOption.IGNORE_CASE), " ")
+        val plain = rawText.replace(Regex("""<br\s*/?>""", RegexOption.IGNORE_CASE), " ")
             .replace(Regex("""<[^>]+>"""), " ")
             .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
             .replace("&quot;", "\"").replace("&#39;", "'").replace("&nbsp;", " ")
-            .replace(Regex("""\\s+"""), " ").trim()
+            .replace(Regex("""\s+"""), " ").trim()
         if (plain.isBlank()) return@mapNotNull null
-        val date = Regex("""<time[^>]+datetime="([^"]+)"""").find(block)?.groupValues?.get(1) ?: ""
+        val date = Regex("<time[^>]+datetime=\\\"([^\\\"]+)\\\"").find(block)?.groupValues?.get(1) ?: ""
         val title = plain.take(260)
         Story(title, label, "https://t.me/$post", date, parseDate(date), side)
     }
