@@ -18,8 +18,8 @@ function parseTelegram(html:string,sid:string,name:string,url:string,group:strin
  for(const b of chunks.slice(1,60)){
   const post=b.match(/data-post="([^"]+)"/)?.[1],raw=b.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1];
   if(!post||!raw)continue;const txt=clean(raw);if(!txt||((sid==="lpralarm"||sid==="vrv_radar"||sid==="locatorru")&&!relevant(txt)))continue;
-  const dt=b.match(/<time[^>]*datetime="([^"]+)"/)?.[1]||checked;
-  out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,""),kind:group,category:category(txt),verification:group==="Официальные"?"Официальный источник":"Неофициальное сообщение"});
+  const dt=b.match(/<time[^>]*datetime="([^"]+)"/)?.[1]||"";
+  out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,""),kind:group,category:category(txt),verification:["mchs_tg","mvd_tg","kosreg_tg","proc_tg","sk_sitnikov"].includes(sid)?"Официальный канал":/очевидц|со слов очевидцев|местные жители сообщают|наблюдали своими глазами/i.test(txt)?"Сообщение очевидцев — не подтверждено":"Неофициальное сообщение"});
  }
  return out;
 }
@@ -30,7 +30,7 @@ function parseRss(xml:string,sid:string,name:string,url:string,group:string,chec
   const link=clean((b.match(/<link[^>]*>([\s\S]*?)<\/link>/i)||[])[1]||(b.match(/<link[^>]*href=["']([^"']+)["']/i)||[])[1]||"");
   const body=clean((b.match(/<(description|summary|content:encoded)[^>]*>([\s\S]*?)<\/(?:description|summary|content:encoded)>/i)||[])[2]||"");
   if(!title||!link)continue;
-  const rawDate=(b.match(/<(pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/i)||[])[2]||checked;
+  const rawDate=(b.match(/<(pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/i)||[])[2]||"";
   const target=absolute(link,url);if(!target)continue;
   out.push({id:hash(sid+target),source:name,title,text:body||title,url:target,date:parseDate(clean(rawDate),""),kind:group,category:category(title+" "+body),verification:group==="Официальные"?"Официальный источник":"СМИ"});
  }
