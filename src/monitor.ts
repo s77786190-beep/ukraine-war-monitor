@@ -55,17 +55,18 @@ function parseHtml(html:string,sid:string,name:string,url:string,group:string,ch
 }
 async function fetchOne(src:typeof SOURCES[number]){
  const [sid,name,url,group,mode]=src,checked=new Date().toISOString();
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);
  try{
-  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);
-  const response=await fetch(url,{headers:{"Accept":"text/html,application/rss+xml,application/atom+xml,application/xml;q=0.9,*/*;q=0.8","User-Agent":"KostromaMonitor/1.1 (+public-source-reader)"},signal:controller.signal});
-  clearTimeout(timer);if(!response.ok)throw new Error("HTTP "+response.status);
+  const response=await fetch(url,{headers:{"Accept":"text/html,application/rss+xml,application/atom+xml,application/xml;q=0.9,*/*;q=0.8"},signal:controller.signal});
+  if(!response.ok)throw new Error("HTTP "+response.status);
   const content=await response.text();if(!content)throw new Error("Пустой ответ");
   let items:News[]=[];
   if(mode!=="html"&&url.includes("t.me/s/"))items=parseTelegram(content,sid,name,url,group,checked);
   else if(/<(?:rss|feed|rdf:RDF)/i.test(content.slice(0,1500)))items=parseRss(content,sid,name,url,group,checked);
   else items=parseHtml(content,sid,name,url,group,checked);
-  return {items,state:{id:sid,status:items.length?"Получено публикаций: "+items.length:"Ответ получен, новых подходящих публикаций не найдено",checked}};
+  return {items,state:{id:sid,status:items.length?"Получено публикаций: "+items.length:"Ответ получен, подходящих публикаций не найдено",checked}};
  }catch(e){return {items:[] as News[],state:{id:sid,status:"Недоступен: "+(e instanceof Error?(e.name==="AbortError"?"тайм-аут":e.message):"ошибка"),checked}}}
+ finally{clearTimeout(timer)}
 }
 export async function refreshSources(){
  const prefs=await getPrefs(),enabled=SOURCES.filter(([sid])=>prefs[sid]!==false);
@@ -84,6 +85,6 @@ export async function searchPublic(q:string):Promise<News[]>{
  ] as const;
  const all:News[]=[];
  for(const [name,url] of providers){try{const r=await fetch(url);if(!r.ok)continue;all.push(...parseRss(await r.text(),name,name,url,"Поиск",new Date().toISOString()))}catch{}}
- try{const url="https://yandex.ru/search/?text="+term;const r=await fetch(url);if(r.ok){const h=await r.text(),links=h.match(/<a[^>]+href=["']https?:[^"']+["'][^>]*>[\s\S]*?<\/a>/gi)||[];for(const a of links.slice(0,35)){const title=clean(a),href=(a.match(/href=["']([^"']+)["']/)||[])[1]||"";if(title.length>35&&href&&!href.includes("yandex."))all.push({id:hash(href),source:"Яндекс",title,text:title,url:href,date:new Date().toISOString(),kind:"Поиск",category:category(title),verification:"Результат поисковой выдачи"})}}}catch{}
+ try{const url="https://yandex.ru/search/?text="+term;const r=await fetch(url);if(r.ok){const h=await r.text(),links=h.match(/<a[^>]+href=["']https?:[^"']+["'][^>]*>[\s\S]*?<\/a>/gi)||[];for(const a of links.slice(0,35)){const title=clean(a),href=(a.match(/href=["']([^"']+)["']/)||[])[1]||"";if(title.length>35&&href&&!href.includes("yandex."))all.push({id:hash(href),source:"Яндекс",title,text:title,url:href,date:"",kind:"Поиск",category:category(title),verification:"Результат поисковой выдачи"})}}}catch{}
  return all.filter((x,i,a)=>a.findIndex(y=>y.url===x.url)===i).slice(0,100);
 }
