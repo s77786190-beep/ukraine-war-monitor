@@ -51,6 +51,7 @@ function parseHtml(html:string,sid:string,name:string,url:string,group:string,ch
   const card=html.slice(Math.max(0,m.index-450),Math.min(html.length,m.index+900));
   const time=card.match(/<time[^>]*(?:datetime=["']([^"']+)["'])?[^>]*>([\s\S]*?)<\/time>/i);
   const date=parseDate(time?.[1]||time?.[2]||"","");
+  if(!time&&!/\/(?:news|novosti|novost|article|press|incident|proisshestv|event|202[4-9])(?:\/|[-_])/i.test(new URL(href).pathname))continue;
   out.push({id:hash(sid+href),source:name,title,text:title,url:href,date,kind:group,category:category(title),verification:group==="Официальные"?"Официальный источник":"СМИ"});
  }
  return out;
