@@ -21,6 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -132,14 +136,7 @@ fun MonitorScreen() {
             }
         }
         if (tab == 6) {
-            Text("ИНТЕРАКТИВНЫЕ КАРТЫ", color = Orange, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-            Text("Карты открываются на сайтах их авторов. Это независимые проекты с разными методиками и датами обновления.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
-            MapLink("DeepStateMap — карта линии фронта", "https://deepstatemap.live/", ::open)
-            MapLink("LostArmour — карта и база визуально подтверждённых потерь", "https://lostarmour.info/", ::open)
-            MapLink("Рыбарь — аналитика и карты", "https://rybar.ru/", ::open)
-            MapLink("Юрий Подоляка — видеоканал и обзоры карт", "https://www.youtube.com/results?search_query=Юрий+Подоляка+карта+фронта", ::open)
-            MapLink("Дивген — поиск проекта и карт", "https://yandex.ru/search/?text=Дивген+карта+СВО", ::open)
-            Text("Важно: карта не является независимым доказательством контроля территории. Сверяйте дату обновления и подтверждения.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+            EmbeddedMapsScreen()
         } else {            if (tab == 3) {
                 Text("РЕГИОН", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Box {
@@ -227,6 +224,55 @@ private fun MapLink(title: String, url: String, open: (String) -> Unit) {
             Text(title, color = MainText, modifier = Modifier.weight(1f))
             Text("Открыть ↗", color = Orange, style = MaterialTheme.typography.labelMedium)
         }
+    }
+}
+
+
+private data class MapSource(val title: String, val url: String, val note: String)
+
+@Composable
+private fun EmbeddedMapsScreen() {
+    val sources = listOf(
+        MapSource("Инциденты", "https://droneobservatory.eu/en", "Европейская обсерватория инцидентов БПЛА: интерактивные метки, карточки событий, фильтры и слой Украины. Не является полным реестром ракетных ударов."),
+        MapSource("DIVGEN", "https://divgen.ru/46.98025/31.99493/9", "Карта DIVGEN открывается внутри приложения. Методика и обозначения принадлежат автору проекта."),
+        MapSource("LostArmour", "https://lostarmour.info/map", "Карта LostArmour с режимами ударов и изменений линии фронта. Данные и оценки принадлежат проекту."),
+        MapSource("DeepState", "https://deepstatemap.live/", "Карта DeepState с собственной методикой оценки линии фронта."),
+        MapSource("Подоляка", "https://t.me/s/yurasumy", "Публичные публикации Юрия Подоляки с картами и пояснениями; отдельной независимой интерактивной карты проекта не обнаружено."),
+        MapSource("RUBIZH", "https://rubizhmap.com/", "Дополнительная интерактивная карта с историей изменений и датами.")
+    )
+    var selected by remember { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxSize()) {
+        Text("КАРТЫ ВНУТРИ ПРИЛОЖЕНИЯ", color = Orange, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            sources.forEachIndexed { index, source ->
+                FilterChip(selected = selected == index, onClick = { selected = index }, label = { Text(source.title) },
+                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Orange, selectedLabelColor = Color(0xFF211507), labelColor = MainText))
+            }
+        }
+        Text(sources[selected].note, color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 6.dp))
+        AndroidView(
+            modifier = Modifier.fillMaxSize().weight(1f),
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.loadsImagesAutomatically = true
+                    settings.javaScriptCanOpenWindowsAutomatically = true
+                    settings.setSupportMultipleWindows(false)
+                    webViewClient = WebViewClient()
+                    webChromeClient = WebChromeClient()
+                    tag = sources[selected].url
+                    loadUrl(sources[selected].url)
+                }
+            },
+            update = { view ->
+                val target = sources[selected].url
+                if (view.tag != target) {
+                    view.tag = target
+                    view.loadUrl(target)
+                }
+            }
+        )
     }
 }
 
