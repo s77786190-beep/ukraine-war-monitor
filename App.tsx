@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from "react";
+import React,{useEffect,useRef,useState} from "react";
 import {ActivityIndicator,Alert,AppState,Linking,Pressable,SafeAreaView,ScrollView,StyleSheet,Switch,Text,TextInput,View} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {StatusBar} from "expo-status-bar";
@@ -8,14 +8,15 @@ import {getNews,getStates,refreshSources,searchPublic,sourcePrefs,setSource,News
 const orange="#FF861A";
 type Tab="Лента"|"Источники"|"Настройки"|"Разрешения"|"Карты";
 export default function App(){
+ const refreshLock=useRef(false);
  const [tab,setTab]=useState<Tab>("Лента"),[news,setNews]=useState<News[]>([]),[states,setStates]=useState<any[]>([]),[prefs,setPrefs]=useState<Record<string,boolean>>({}),[interval,setIntervalValue]=useState(30),[bg,setBg]=useState(false),[busy,setBusy]=useState(false),[last,setLast]=useState(""),[query,setQuery]=useState(""),[results,setResults]=useState<News[]|null>(null),[filter,setFilter]=useState("Все"),[page,setPage]=useState(1),[period,setPeriod]=useState("Все время");
  useEffect(()=>{(async()=>{const [n,s,p,i,b,l]=await Promise.all([getNews(),getStates(),sourcePrefs(),AsyncStorage.getItem("monitor_interval_minutes"),backgroundEnabled(),AsyncStorage.getItem("km_last")]);setNews(n);setStates(s);setPrefs(p);if(i&&INTERVALS.includes(Number(i)))setIntervalValue(Number(i));setBg(b);if(l)setLast(l)})().catch(()=>Alert.alert("Ошибка","Не удалось загрузить настройки."))},[]);
- const refresh=async()=>{if(busy)return;setBusy(true);try{const r=await refreshSources();setNews(r.news);setStates(r.states);const d=new Date().toISOString();setLast(d);Alert.alert("Проверка завершена","Новых публикаций: "+r.added+". Источников проверено: "+r.states.length)}catch{Alert.alert("Ошибка","Не удалось проверить источники.")}finally{setBusy(false)}};
+ const refresh=async()=>{if(refreshLock.current)return;refreshLock.current=true;setBusy(true);try{const r=await refreshSources();setNews(r.news);setStates(r.states);const d=new Date().toISOString();setLast(d);Alert.alert("Проверка завершена","Новых публикаций: "+r.added+". Источников проверено: "+r.states.length)}catch{Alert.alert("Ошибка","Не удалось проверить источники.")}finally{refreshLock.current=false;setBusy(false)}};
  useEffect(()=>{if(news.length===0&&!busy)void refresh()},[]);
  const chooseInterval=async(n:number)=>{setIntervalValue(n);await AsyncStorage.setItem("monitor_interval_minutes",String(n));if(bg)try{await setBackground(true,n)}catch(e){Alert.alert("Фоновый режим",String(e))}};
  const toggleBg=async(v:boolean)=>{try{await setBackground(v,interval);setBg(v)}catch(e){Alert.alert("Фоновый режим",String(e))}};
  
- useEffect(()=>{const timer=setInterval(async()=>{if(AppState.currentState!=="active")return;try{const r=await refreshSources();setNews(r.news);setStates(r.states);const d=await AsyncStorage.getItem("km_last");if(d)setLast(d)}catch{}},interval*60000);return()=>clearInterval(timer)},[interval]);
+ useEffect(()=>{const timer=setInterval(async()=>{if(AppState.currentState!=="active"||refreshLock.current)return;refreshLock.current=true;try{const r=await refreshSources();setNews(r.news);setStates(r.states);const d=await AsyncStorage.getItem("km_last");if(d)setLast(d)}catch{}finally{refreshLock.current=false}},interval*60000);return()=>clearInterval(timer)},[interval]);
  useEffect(()=>{const sub=AppState.addEventListener("change",async state=>{if(state==="active"){try{const [n,st,l]=await Promise.all([getNews(),getStates(),AsyncStorage.getItem("km_last")]);setNews(n);setStates(st);if(l)setLast(l)}catch{}}});return()=>sub.remove()},[]);
  const search=async()=>{if(!query.trim())return;setBusy(true);setResults([]);try{setResults(await searchPublic(query.trim()))}finally{setBusy(false)}};
  const active=AppState.currentState==="active";const effectiveInterval=active?interval:(bg?Math.max(15,interval):0);const next=last&&effectiveInterval?new Date(new Date(last).getTime()+effectiveInterval*60000).toLocaleString("ru-RU"):"после следующего запуска";
