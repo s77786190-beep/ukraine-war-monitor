@@ -27,6 +27,11 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.work.Worker
+import androidx.work.WorkerParameters
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import java.net.URL
 import java.net.URLEncoder
@@ -81,12 +86,12 @@ fun MonitorScreen() {
     fun refresh() {
         scope.launch {
             loading = true; error = ""
-            try { stories = withContext(Dispatchers.IO) { loadFeeds(tab, region) }; page = 1 }
+            try { stories = withContext(Dispatchers.IO) { loadFeeds(tab, region) }; saveCachedStories(context, stories); page = 1 }
             catch (_: Exception) { error = "Часть лент недоступна. Попробуйте обновить или открыть источник напрямую." }
             loading = false
         }
     }
-    LaunchedEffect(tab, region) { if (tab in 0..3 || tab == 4 || tab == 5) refresh() }
+    LaunchedEffect(tab, region) { if (tab in 0..5) refresh() }
 
     val cutoff = when (period) {
         "24 часа" -> System.currentTimeMillis() - 86400000L
@@ -228,7 +233,7 @@ private fun MapLink(title: String, url: String, open: (String) -> Unit) {
 
 private data class Feed(val url: String, val label: String, val side: String)
 
-private fun loadFeeds(tab: Int, region: String): List<Story> {
+internal fun loadFeeds(tab: Int, region: String): List<Story> {
     val query = when (tab) {
         1 -> "официальное заявление Россия Украина война переговоры"
         2 -> "военкор фронт сводка продвижение войск Украина"
@@ -307,3 +312,19 @@ private fun parseDate(value: String): Long {
 }
 private fun formatDate(timestamp: Long): String =
     if (timestamp <= 0L) "Дата не указана" else SimpleDateFormat("dd.MM.yyyy · HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+
+private const val CACHE_PREFS = "monitor_cache"
+private const val CACHE_KEY = "stories"
+private fun saveCachedStories(context: Context, stories: List<Story>) {
+    val array = JSONArray()
+    stories.forEach { s -> array.put(JSONObject().put("title", s.title).put("source", s.source).put("link", s.link).put("date", s.date).put("timestamp", s.timestamp).put("side", s.side)) }
+    context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit().putString(CACHE_KEY, array.toString()).apply()
+}
+class FeedRefreshWorker(appContext: Context, params: WorkerParameters) : Worker(appContext, params) {
+    override fun doWork(): Result = try {
+        val combined = (loadFeeds(0, "Все регионы") + loadFeeds(2, "Все регионы") + loadFeeds(5, "Все регионы")).distinctBy { it.link }.sortedByDescending { it.timestamp }.take(500)
+        if (combined.isNotEmpty()) saveCachedStories(applicationContext, combined)
+        Result.success()
+    } catch (_: Exception) { Result.retry() }
+}
