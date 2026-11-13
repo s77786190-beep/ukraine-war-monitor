@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "interval_minutes": 30,
+  "allowed_interval_minutes": [5, 10, 15, 20, 30, 45, 60, 180, 300, 720, 1440],
+  "timezone": "Europe/Kyiv",
+  "last_checked_at": null,
+  "next_check_at": null
+}
