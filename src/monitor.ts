@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {SOURCES} from "./sources";
 export type News={id:string;source:string;title:string;text:string;url:string;date:string;kind:string;category:string;verification?:string};
 const KEY="km_news_v1", STATE="km_states_v1", PREF="km_sources_v1";
-const clean=(v:string)=>v.replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
+const clean=(v:string)=>v.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 const relevant=(v:string)=>/костром|буй\b|шарья|волгоречен|галич|нейск|антропов|макарьев|мантуров|солигалич|чухлом|судислав|кологрив|павин|поназырев|кады/i.test(v);
 const category=(v:string)=>/бпла|беспилот|дрон|пво|сбит|ракет|воздушн.{0,20}опасност|малоразмерн.{0,20}шар|аэростат/i.test(v)?"БПЛА / ракеты / тревоги":/пожар|авари|дтп|происшеств|взрыв|обломк|падени/i.test(v)?"Происшествия":"Другие новости";
 const hash=(v:string)=>{let h=0;for(let i=0;i<v.length;i++)h=(Math.imul(31,h)+v.charCodeAt(i))|0;return String(h);};
@@ -19,7 +19,7 @@ function parseTelegram(html:string,sid:string,name:string,url:string,group:strin
   const post=b.match(/data-post="([^"]+)"/)?.[1],raw=b.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1];
   if(!post||!raw)continue;const txt=clean(raw);if(!txt||((sid==="lpralarm"||sid==="vrv_radar"||sid==="locatorru")&&!relevant(txt)))continue;
   const dt=b.match(/<time[^>]*datetime="([^"]+)"/)?.[1]||checked;
-  out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,checked),kind:group,category:category(txt),verification:group==="Официальные"?"Официальный источник":"Неофициальное сообщение"});
+  out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,""),kind:group,category:category(txt),verification:group==="Официальные"?"Официальный источник":"Неофициальное сообщение"});
  }
  return out;
 }
@@ -32,7 +32,7 @@ function parseRss(xml:string,sid:string,name:string,url:string,group:string,chec
   if(!title||!link)continue;
   const rawDate=(b.match(/<(pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/i)||[])[2]||checked;
   const target=absolute(link,url);if(!target)continue;
-  out.push({id:hash(sid+target),source:name,title,text:body||title,url:target,date:parseDate(clean(rawDate),checked),kind:group,category:category(title+" "+body),verification:group==="Официальные"?"Официальный источник":"СМИ"});
+  out.push({id:hash(sid+target),source:name,title,text:body||title,url:target,date:parseDate(clean(rawDate),""),kind:group,category:category(title+" "+body),verification:group==="Официальные"?"Официальный источник":"СМИ"});
  }
  return out;
 }
@@ -48,7 +48,7 @@ function parseHtml(html:string,sid:string,name:string,url:string,group:string,ch
   seen.add(href);
   const card=html.slice(Math.max(0,m.index-450),Math.min(html.length,m.index+900));
   const time=card.match(/<time[^>]*(?:datetime=["']([^"']+)["'])?[^>]*>([\s\S]*?)<\/time>/i);
-  const date=parseDate(time?.[1]||time?.[2]||checked,checked);
+  const date=parseDate(time?.[1]||time?.[2]||"","");
   out.push({id:hash(sid+href),source:name,title,text:title,url:href,date,kind:group,category:category(title),verification:group==="Официальные"?"Официальный источник":"СМИ"});
  }
  return out;
@@ -73,7 +73,7 @@ export async function refreshSources(){
  for(let i=0;i<enabled.length;i+=4)results.push(...await Promise.all(enabled.slice(i,i+4).map(fetchOne)));
  const found=results.flatMap(x=>x.items),disabled=SOURCES.filter(([sid])=>prefs[sid]===false).map(([sid])=>({id:sid,status:"Отключён пользователем",checked:new Date().toISOString()})),states=[...results.map(x=>x.state),...disabled].sort((a,b)=>SOURCES.findIndex(x=>x[0]===a.id)-SOURCES.findIndex(x=>x[0]===b.id)),old=await getNews();
  const map=new Map<string,News>();for(const item of [...found,...old])if(!map.has(item.id))map.set(item.id,item);
- const all=[...map.values()].sort((a,b)=>+new Date(b.date)-+new Date(a.date)).slice(0,1500);
+ const all=[...map.values()].sort((a,b)=>(Date.parse(b.date)||0)-(Date.parse(a.date)||0)).slice(0,1500);
  await AsyncStorage.setItem(KEY,JSON.stringify(all));await AsyncStorage.setItem(STATE,JSON.stringify(states));await AsyncStorage.setItem("km_last",new Date().toISOString());
  return {news:all,states,added:Math.max(0,all.length-old.length)};
 }
