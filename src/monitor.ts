@@ -17,7 +17,7 @@ function parseTelegram(html:string,sid:string,name:string,url:string,group:strin
  const out:News[]=[];const chunks=html.split('class="tgme_widget_message_wrap');
  for(const b of chunks.slice(1,60)){
   const post=b.match(/data-post="([^"]+)"/)?.[1],raw=b.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1];
-  if(!post||!raw)continue;const txt=clean(raw);if(!txt||(!relevant(txt)&&sid!=="lpralarm"&&sid!=="vrv_radar"&&sid!=="locatorru"))continue;
+  if(!post||!raw)continue;const txt=clean(raw);if(!txt||((sid==="lpralarm"||sid==="vrv_radar"||sid==="locatorru")&&!relevant(txt)))continue;
   const dt=b.match(/<time[^>]*datetime="([^"]+)"/)?.[1]||checked;
   out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,checked),kind:group,category:category(txt),verification:group==="Официальные"?"Официальный источник":"Неофициальное сообщение"});
  }
@@ -29,7 +29,7 @@ function parseRss(xml:string,sid:string,name:string,url:string,group:string,chec
   const title=clean((b.match(/<title[^>]*>([\s\S]*?)<\/title>/i)||[])[1]||"");
   const link=clean((b.match(/<link[^>]*>([\s\S]*?)<\/link>/i)||[])[1]||(b.match(/<link[^>]*href=["']([^"']+)["']/i)||[])[1]||"");
   const body=clean((b.match(/<(description|summary|content:encoded)[^>]*>([\s\S]*?)<\/(?:description|summary|content:encoded)>/i)||[])[2]||"");
-  if(!title||!link||(!relevant(title+" "+body)&&!url.includes("kostroma")))continue;
+  if(!title||!link)continue;
   const rawDate=(b.match(/<(pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/i)||[])[2]||checked;
   const target=absolute(link,url);if(!target)continue;
   out.push({id:hash(sid+target),source:name,title,text:body||title,url:target,date:parseDate(clean(rawDate),checked),kind:group,category:category(title+" "+body),verification:group==="Официальные"?"Официальный источник":"СМИ"});
@@ -43,7 +43,7 @@ function parseHtml(html:string,sid:string,name:string,url:string,group:string,ch
   const href=absolute(m[1],url),title=clean(m[2]);
   if(!href||!title||title.length<24||title.length>240||seen.has(href))continue;
   if(!href.startsWith("https://")||href===url||/javascript:|mailto:|tel:|login|search|privacy|cookie|subscribe|advert|#/.test(href))continue;
-  if(!relevant(title)&&!relevant(clean(m[0]))&&sid!=="mchs44"&&sid!=="adm44"&&sid!=="proc44"&&sid!=="sled44")continue;
+  if(title.length<24)continue;
   if(new URL(href).hostname!==new URL(url).hostname)continue;
   seen.add(href);
   const card=html.slice(Math.max(0,m.index-450),Math.min(html.length,m.index+900));
