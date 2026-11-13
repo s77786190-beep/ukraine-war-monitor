@@ -1,16 +1,15 @@
 name: Build Android APK
-
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
       - "App.tsx"
+      - "src/**"
       - "app.json"
       - "package.json"
       - "tsconfig.json"
       - ".github/workflows/build-android.yml"
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,7 +20,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -29,6 +27,8 @@ jobs:
           java-version: "17"
       - name: Install dependencies
         run: npm install
+      - name: TypeScript check
+        run: npx tsc --noEmit
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
       - name: Build release APK
