@@ -32,6 +32,10 @@ import androidx.work.WorkerParameters
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.work.WorkManager
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.ExistingPeriodicWorkPolicy
+import java.util.concurrent.TimeUnit
 import org.xmlpull.v1.XmlPullParser
 import java.net.URL
 import java.net.URLEncoder
@@ -55,6 +59,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(16, 16, 16)
         window.navigationBarColor = android.graphics.Color.rgb(16, 16, 16)
+        val periodic = PeriodicWorkRequestBuilder<FeedRefreshWorker>(15, TimeUnit.MINUTES).build()
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "automatic_news_refresh", ExistingPeriodicWorkPolicy.KEEP, periodic
+        )
         setContent { MaterialTheme(colorScheme = DarkColors) { MonitorScreen() } }
     }
 }
@@ -316,6 +324,17 @@ private fun formatDate(timestamp: Long): String =
 
 private const val CACHE_PREFS = "monitor_cache"
 private const val CACHE_KEY = "stories"
+private fun readCachedStories(context: Context): List<Story> {
+    return try {
+        val raw = context.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).getString(CACHE_KEY, "[]") ?: "[]"
+        val array = JSONArray(raw)
+        (0 until array.length()).map { i ->
+            val o = array.getJSONObject(i)
+            Story(o.optString("title"), o.optString("source"), o.optString("link"), o.optString("date"), o.optLong("timestamp"), o.optString("side"))
+        }
+    } catch (_: Exception) { emptyList() }
+}
+
 private fun saveCachedStories(context: Context, stories: List<Story>) {
     val array = JSONArray()
     stories.forEach { s -> array.put(JSONObject().put("title", s.title).put("source", s.source).put("link", s.link).put("date", s.date).put("timestamp", s.timestamp).put("side", s.side)) }
