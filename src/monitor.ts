@@ -71,7 +71,7 @@ export async function refreshSources(){
  const prefs=await getPrefs(),enabled=SOURCES.filter(([sid])=>prefs[sid]!==false);
  const results:{items:News[];state:any}[]=[];
  for(let i=0;i<enabled.length;i+=4)results.push(...await Promise.all(enabled.slice(i,i+4).map(fetchOne)));
- const found=results.flatMap(x=>x.items),states=results.map(x=>x.state),old=await getNews();
+ const found=results.flatMap(x=>x.items),disabled=SOURCES.filter(([sid])=>prefs[sid]===false).map(([sid])=>({id:sid,status:"Отключён пользователем",checked:new Date().toISOString()})),states=[...results.map(x=>x.state),...disabled].sort((a,b)=>SOURCES.findIndex(x=>x[0]===a.id)-SOURCES.findIndex(x=>x[0]===b.id)),old=await getNews();
  const map=new Map<string,News>();for(const item of [...found,...old])if(!map.has(item.id))map.set(item.id,item);
  const all=[...map.values()].sort((a,b)=>+new Date(b.date)-+new Date(a.date)).slice(0,1500);
  await AsyncStorage.setItem(KEY,JSON.stringify(all));await AsyncStorage.setItem(STATE,JSON.stringify(states));await AsyncStorage.setItem("km_last",new Date().toISOString());
