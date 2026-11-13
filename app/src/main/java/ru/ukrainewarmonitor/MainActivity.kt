@@ -239,7 +239,7 @@ private fun EmbeddedMapsScreen() {
         MapSource("DIVGEN", "https://divgen.ru/46.98025/31.99493/9", "Карта DIVGEN открывается внутри приложения. Методика и обозначения принадлежат автору проекта."),
         MapSource("LostArmour", "https://lostarmour.info/map", "Карта LostArmour с режимами ударов и изменений линии фронта. Данные и оценки принадлежат проекту."),
         MapSource("DeepState", "https://deepstatemap.live/", "Карта DeepState с собственной методикой оценки линии фронта."),
-        MapSource("Подоляка", "https://t.me/s/yurasumy", "Публичные публикации Юрия Подоляки с картами и пояснениями; отдельной независимой интерактивной карты проекта не обнаружено."),
+        MapSource("Карты Подоляки", "https://t.me/s/yurasumy", "Здесь отображаются публикации публичного канала с изображениями карт. Прокручивайте ленту, нажимайте на изображение карты для просмотра крупнее; используйте жесты масштабирования и перемещения по изображению. Это оригинальные публикации автора, а не отдельная интерактивная карта."),
         MapSource("RUBIZH", "https://rubizhmap.com/", "Дополнительная интерактивная карта с историей изменений и датами.")
     )
     var selected by remember { mutableIntStateOf(0) }
@@ -259,6 +259,11 @@ private fun EmbeddedMapsScreen() {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.loadsImagesAutomatically = true
+                    settings.setSupportZoom(true)
+                    settings.builtInZoomControls = true
+                    settings.displayZoomControls = false
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
                     settings.javaScriptCanOpenWindowsAutomatically = true
                     settings.setSupportMultipleWindows(false)
                     webViewClient = WebViewClient()
