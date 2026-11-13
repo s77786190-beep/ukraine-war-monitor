@@ -1,12 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {SOURCES} from "./sources";
-export type News={id:string;source:string;title:string;text:string;url:string;date:string;kind:string;category:string;verification?:string};
+export type News={id:string;source:string;title:string;text:string;url:string;date:string;kind:string;category:string;verification?:string;facts?:string[]};
 const KEY="km_news_v1", STATE="km_states_v1", PREF="km_sources_v1";
 const clean=(v:string)=>v.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 const relevant=(v:string)=>/костром|буй\b|шарья|волгоречен|галич|нейск|антропов|макарьев|мантуров|солигалич|чухлом|судислав|кологрив|павин|поназырев|кады/i.test(v);
 const category=(v:string)=>/бпла|беспилот|дрон|пво|сбит|ракет|воздушн.{0,20}опасност|малоразмерн.{0,20}шар|аэростат/i.test(v)?"БПЛА / ракеты / тревоги":/пожар|авари|дтп|происшеств|взрыв|обломк|падени/i.test(v)?"Происшествия":"Другие новости";
 const SEARCH_HOSTS=new Set(["news.google.com","www.bing.com","yandex.ru"]);
 const allowedSourceHost=(url:string)=>{try{const host=new URL(url).hostname;return new URL(url).protocol==="https:"&&(SOURCES.some(s=>{try{return new URL(s[2]).hostname===host}catch{return false}})||SEARCH_HOSTS.has(host))}catch{return false}};
+const extractFacts=(v:string)=>{const f:string[]=[];if(/не пострадал|без пострадавш|пострадавших нет/i.test(v))f.push("Источник сообщает: пострадавших нет");else if(/пострадавш|ранен|госпитализ|погиб|жертв/i.test(v))f.push("Упомянуты пострадавшие или погибшие");if(/повреждений нет|разрушений нет|ущерба нет/i.test(v))f.push("Источник сообщает: повреждений нет");else if(/поврежден|разрушен|обломк|осколк/i.test(v))f.push("Упомянуты повреждения или обломки");if(/пожар|возгорание|загорел/i.test(v))f.push("Упомянут пожар или возгорание");return f};
 const hash=(v:string)=>{let h=0;for(let i=0;i<v.length;i++)h=(Math.imul(31,h)+v.charCodeAt(i))|0;return String(h);};
 async function getPrefs(){try{return JSON.parse((await AsyncStorage.getItem(PREF))||"{}")}catch{return {}}}
 export async function sourcePrefs(){return getPrefs()}
@@ -21,7 +22,7 @@ function parseTelegram(html:string,sid:string,name:string,url:string,group:strin
   const post=b.match(/data-post="([^"]+)"/)?.[1],raw=b.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1];
   if(!post||!raw)continue;const txt=clean(raw);if(!txt||((sid==="lpralarm"||sid==="vrv_radar"||sid==="locatorru")&&!relevant(txt)))continue;
   const dt=b.match(/<time[^>]*datetime="([^"]+)"/)?.[1]||"";
-  out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,""),kind:group,category:category(txt),verification:["mchs_tg","mvd_tg","kosreg_tg","proc_tg","sk_sitnikov"].includes(sid)?"Официальный канал":/очевидц|со слов очевидцев|местные жители сообщают|наблюдали своими глазами/i.test(txt)?"Сообщение очевидцев — не подтверждено":"Неофициальное сообщение"});
+  out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,""),kind:group,category:category(txt),verification:["mchs_tg","mvd_tg","kosreg_tg","proc_tg","sk_sitnikov"].includes(sid)?"Официальный канал":/очевидц|со слов очевидцев|местные жители сообщают|наблюдали своими глазами/i.test(txt)?"Сообщение очевидцев — не подтверждено":"Неофициальное сообщение",facts:extractFacts(txt)});
  }
  return out;
 }
@@ -34,7 +35,7 @@ function parseRss(xml:string,sid:string,name:string,url:string,group:string,chec
   if(!title||!link)continue;
   const rawDate=(b.match(/<(pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/i)||[])[2]||"";
   const target=absolute(link,url);if(!target)continue;
-  out.push({id:hash(sid+target),source:name,title,text:body||title,url:target,date:parseDate(clean(rawDate),""),kind:group,category:category(title+" "+body),verification:group==="Официальные"?"Официальный источник":"СМИ"});
+  out.push({id:hash(sid+target),source:name,title,text:body||title,url:target,date:parseDate(clean(rawDate),""),kind:group,category:category(title+" "+body),verification:group==="Официальные"?"Официальный источник":"СМИ",facts:extractFacts(title+" "+body)});
  }
  return out;
 }
@@ -52,7 +53,7 @@ function parseHtml(html:string,sid:string,name:string,url:string,group:string,ch
   const time=card.match(/<time[^>]*(?:datetime=["']([^"']+)["'])?[^>]*>([\s\S]*?)<\/time>/i);
   const date=parseDate(time?.[1]||time?.[2]||"","");
   if(!time&&!/\/(?:news|novosti|novost|article|press|incident|proisshestv|event|202[4-9])(?:\/|[-_])/i.test(new URL(href).pathname))continue;
-  out.push({id:hash(sid+href),source:name,title,text:title,url:href,date,kind:group,category:category(title),verification:group==="Официальные"?"Официальный источник":"СМИ"});
+  out.push({id:hash(sid+href),source:name,title,text:title,url:href,date,kind:group,category:category(title),verification:group==="Официальные"?"Официальный источник":"СМИ",facts:extractFacts(title)});
  }
  return out;
 }
