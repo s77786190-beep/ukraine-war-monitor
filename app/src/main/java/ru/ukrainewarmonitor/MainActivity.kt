@@ -56,7 +56,7 @@ private val DarkColors = darkColorScheme(primary = Orange, onPrimary = Color(0xF
     background = Background, surface = SurfaceDark, onBackground = MainText, onSurface = MainText,
     surfaceVariant = Color(0xFF292722), onSurfaceVariant = MutedText)
 
-data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long, val side: String = "Агрегатор")
+data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long, val side: String = "Агрегатор") { val language: String get() = detectLanguage(title) }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,6 +86,7 @@ fun MonitorScreen() {
     var region by remember { mutableStateOf(regions.first()) }
     var regionMenu by remember { mutableStateOf(false) }
     var period by remember { mutableStateOf("7 дней") }
+    var languageFilter by remember { mutableStateOf("Все языки") }
     var pageSize by remember { mutableIntStateOf(20) }
     var page by remember { mutableIntStateOf(1) }
     var pageMenu by remember { mutableStateOf(false) }
@@ -98,13 +99,13 @@ fun MonitorScreen() {
     fun refresh() {
         scope.launch {
             loading = true; error = ""
-            try { stories = withContext(Dispatchers.IO) { loadFeeds(tab, region) }; saveCachedStories(context, stories); page = 1 }
+            try { stories = withContext(Dispatchers.IO) { loadFeeds(tab, region, languageFilter) }; saveCachedStories(context, stories); page = 1 }
             catch (_: Exception) { error = "Часть лент недоступна. Попробуйте обновить или открыть источник напрямую." }
             loading = false
         }
     }
     LaunchedEffect(Unit) { val cached = withContext(Dispatchers.IO) { readCachedStories(context) }; if (cached.isNotEmpty()) stories = cached }
-    LaunchedEffect(tab, region) { if (tab in 0..5) refresh() }
+    LaunchedEffect(tab, region, languageFilter) { if (tab in 0..5) refresh() }
 
     val cutoff = when (period) {
         "24 часа" -> System.currentTimeMillis() - 86400000L
@@ -112,7 +113,8 @@ fun MonitorScreen() {
         "30 дней" -> System.currentTimeMillis() - 2592000000L
         else -> 0L
     }
-    val filtered = stories.filter { it.timestamp >= cutoff }
+    val filtered = stories.filter { it.timestamp == 0L || it.timestamp >= cutoff }
+        .filter { languageFilter == "Все языки" || (languageFilter == "Русский" && it.language == "ru") || (languageFilter == "English" && it.language == "en") || (languageFilter == "Deutsch" && it.language == "de") }
         .filter { search.isBlank() || it.title.contains(search, true) || it.source.contains(search, true) }
         .sortedByDescending { it.timestamp }
     val pageCount = maxOf(1, (filtered.size + pageSize - 1) / pageSize)
@@ -154,6 +156,15 @@ fun MonitorScreen() {
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Orange, unfocusedBorderColor = Color(0xFF51483B),
                     focusedTextColor = MainText, unfocusedTextColor = MainText, cursorColor = Orange))
             Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("ЯЗЫК", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(6.dp))
+                listOf("Все языки", "Русский", "English", "Deutsch").forEach { lang ->
+                    TextButton(onClick = { languageFilter = lang; page = 1 }, contentPadding = PaddingValues(horizontal = 3.dp)) {
+                        Text(if (languageFilter == lang) "[$lang]" else lang, color = if (languageFilter == lang) Orange else MutedText, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("ПЕРИОД", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(8.dp))
@@ -197,7 +208,10 @@ fun MonitorScreen() {
                                 Spacer(Modifier.weight(1f))
                                 Text(formatDate(story.timestamp), color = MutedText, style = MaterialTheme.typography.labelSmall)
                             }
-                            Text("Открыть публикацию ↗", color = Orange, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 5.dp))
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Открыть публикацию ↗", color = Orange, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f).clickable { open(story.link) }.padding(top = 5.dp))
+                                if (story.language != "ru") TextButton(onClick = { open("https://translate.google.com/translate?sl=auto&tl=ru&u=" + URLEncoder.encode(story.link, "UTF-8")) }) { Text("Перевести на русский", color = Orange, style = MaterialTheme.typography.labelSmall) }
+                            }
                         }
                     }
                 }
@@ -232,6 +246,8 @@ private data class MapSource(val title: String, val url: String, val note: Strin
 
 @Composable
 private fun EmbeddedMapsScreen() {
+    val context = LocalContext.current
+    var activeWebView by remember { mutableStateOf<WebView?>(null) }
     val sources = listOf(
         MapSource("Удары Украина", "https://battlemap.online/conflicts/ukraine/en", "Интерактивная карта событий по Украине: удары, БПЛА, ракеты, обстрелы, взрывы и сообщения о продвижениях. Есть даты, категории, координаты и ссылки на источники. События — публичные сообщения, а не автоматически подтверждённые факты."),
         MapSource("Инциденты Россия", "https://battlemap.online/conflicts/russia/en", "Карта сообщений об инцидентах на территории России: БПЛА, взрывы, обстрелы, пожары и объявленные перехваты. У событий есть время, координаты и ссылки на публикации; версии сторон показываются отдельно."),
@@ -252,12 +268,23 @@ private fun EmbeddedMapsScreen() {
             }
         }
         Text(sources[selected].note, color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { activeWebView?.reload() }, modifier = Modifier.weight(1f)) { Text("Перезагрузить", color = Orange) }
+            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(sources[selected].url))) }, modifier = Modifier.weight(1f)) { Text("Открыть отдельно", color = Orange) }
+        }
         AndroidView(
             modifier = Modifier.fillMaxSize().weight(1f),
             factory = { ctx ->
                 WebView(ctx).apply {
+                    setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
+                    settings.databaseEnabled = true
+                    settings.allowContentAccess = true
+                    settings.allowFileAccess = false
+                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                    android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+                    android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                     settings.loadsImagesAutomatically = true
                     settings.setSupportZoom(true)
                     settings.builtInZoomControls = true
@@ -268,6 +295,7 @@ private fun EmbeddedMapsScreen() {
                     settings.setSupportMultipleWindows(false)
                     webViewClient = WebViewClient()
                     webChromeClient = WebChromeClient()
+                    activeWebView = this
                     tag = sources[selected].url
                     loadUrl(sources[selected].url)
                 }
@@ -285,22 +313,52 @@ private fun EmbeddedMapsScreen() {
 
 private data class Feed(val url: String, val label: String, val side: String)
 
-internal fun loadFeeds(tab: Int, region: String): List<Story> {
-    val query = when (tab) {
-        1 -> "официальное заявление Россия Украина война переговоры"
-        2 -> "военкор фронт сводка продвижение войск Украина"
-        3 -> if (region == "Все регионы") "БПЛА атака российские регионы губернатор" else "${region} БПЛА атака прилёт беспилотник"
-        5 -> "окончание войны Украина прогноз переговоры Россия"
-        else -> "война Украина фронт переговоры продвижение войск"
+internal fun loadFeeds(tab: Int, region: String, language: String = "Все языки"): List<Story> {
+    val langParams = when (language) {
+        "English" -> "hl=en-US&gl=US&ceid=US:en"
+        "Deutsch" -> "hl=de&gl=DE&ceid=DE:de"
+        else -> "hl=ru&gl=RU&ceid=RU:ru"
     }
-    val q = URLEncoder.encode(query, "UTF-8")
     val feeds = mutableListOf<Feed>()
-    if (tab == 0 || tab == 1 || tab == 2 || tab == 3) {
-        feeds += Feed("https://news.google.com/rss/search?q=$q&hl=ru&gl=RU&ceid=RU:ru", "Google Новости", "Поисковый агрегатор")
-        feeds += Feed("https://news.yandex.ru/yandsearch?text=$q&format=rss", "Яндекс Новости", "Поисковый агрегатор")
+    fun google(query: String, label: String = "Google Новости") {
+        feeds += Feed("https://news.google.com/rss/search?q=" + URLEncoder.encode(query, "UTF-8") + "&" + langParams, label, "Поисковый агрегатор")
     }
-    if (tab == 0 || tab == 1 || tab == 2 || tab == 3) {
+    if (tab == 3) {
+        val terms = when (region) {
+            "Костромская область" -> "Кострома OR Костромская область OR Костромской район"
+            "Ивановская область" -> "Иваново OR Ивановская область"
+            "Владимирская область" -> "Владимир OR Владимирская область"
+            "Московская область" -> "Московская область OR Подмосковье"
+            "Белгородская область" -> "Белгород OR Белгородская область"
+            "Курская область" -> "Курск OR Курская область"
+            "Брянская область" -> "Брянск OR Брянская область"
+            "Воронежская область" -> "Воронеж OR Воронежская область"
+            "Ростовская область" -> "Ростовская область OR Ростов-на-Дону"
+            "Краснодарский край" -> "Краснодар OR Краснодарский край OR Кубань"
+            "Ленинградская область" -> "Ленинградская область OR Ленобласть"
+            "Псковская область" -> "Псков OR Псковская область"
+            "Калужская область" -> "Калуга OR Калужская область"
+            else -> "российские регионы"
+        }
+        google("($terms) (БПЛА OR беспилотник OR дрон OR взрыв OR ПВО OR атака OR обстрел OR ракета)", "Google Новости · регион")
+    } else if (tab == 4) {
         feeds += listOf(
+            Feed("https://rsshub.app/telegram/channel/rybar", "Рыбарь · Telegram", "Публичный Telegram"),
+            Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка · Telegram", "Публичный Telegram"),
+            Feed("https://rsshub.app/telegram/channel/boris_rozhin", "Colonelcassad · Telegram", "Публичный Telegram"),
+            Feed("https://rsshub.rssforever.com/telegram/channel/rybar", "Рыбарь · резервная лента", "Публичный Telegram"),
+            Feed("https://rsshub.rssforever.com/telegram/channel/yurasumy", "Юрий Подоляка · резервная лента", "Публичный Telegram")
+        )
+        google("site:t.me/s (Украина OR фронт OR БПЛА OR беспилотник OR обстрел)", "Google · публичные соцсети")
+    } else {
+        val query = when (tab) {
+            1 -> "официальное заявление Россия Украина война переговоры"
+            2 -> "военкор фронт сводка продвижение войск Украина"
+            5 -> "окончание войны Украина прогноз переговоры Россия"
+            else -> "война Украина фронт переговоры продвижение войск"
+        }
+        google(query)
+        if (tab == 0 || tab == 1 || tab == 2) feeds += listOf(
             Feed("https://tass.ru/rss/v2.xml", "ТАСС", "Российское СМИ"),
             Feed("https://ria.ru/export/rss2/archive/index.xml", "РИА Новости", "Российское СМИ"),
             Feed("https://russian.rt.com/rss", "RT", "Российское СМИ"),
@@ -308,22 +366,36 @@ internal fun loadFeeds(tab: Int, region: String): List<Story> {
             Feed("https://rss.dw.com/rdf/rss-ru-all", "DW", "Международное СМИ"),
             Feed("https://www.theguardian.com/world/rss", "The Guardian", "Западное СМИ")
         )
-    }
-    if (tab == 5) {
-        feeds += Feed("https://www.youtube.com/feeds/videos.xml?search_query=$q", "YouTube", "Видеопоиск")
-    }
-    if (tab == 0 || tab == 2 || tab == 4) {
-        feeds += listOf(
-            Feed("https://rsshub.app/telegram/channel/rybar", "Рыбарь / Telegram", "Неофициальный Telegram"),
-            Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка / Telegram", "Неофициальный Telegram"),
-            Feed("https://rsshub.app/telegram/channel/boris_rozhin", "Colonelcassad / Telegram", "Неофициальный Telegram")
+        if (tab == 0 || tab == 2) feeds += listOf(
+            Feed("https://rsshub.app/telegram/channel/rybar", "Рыбарь · Telegram", "Публичный Telegram"),
+            Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка · Telegram", "Публичный Telegram"),
+            Feed("https://rsshub.app/telegram/channel/boris_rozhin", "Colonelcassad · Telegram", "Публичный Telegram")
         )
+        if (tab == 5) feeds += Feed("https://www.youtube.com/feeds/videos.xml?search_query=" + URLEncoder.encode(query, "UTF-8"), "YouTube", "Видеопоиск")
     }
     val all = mutableListOf<Story>()
-    feeds.forEach { feed ->
-        try { all += readFeed(feed) } catch (_: Exception) { }
-    }
-    return all.distinctBy { it.link }.sortedByDescending { it.timestamp }.take(250)
+    var successful = 0
+    feeds.forEach { feed -> try { all += readFeed(feed); successful++ } catch (_: Exception) { } }
+    if (successful == 0) throw java.io.IOException("Источники не ответили. Проверьте соединение или повторите позже.")
+    val regional = if (tab == 3) when (region) {
+        "Костромская область" -> listOf("костром", "kostroma")
+        "Ивановская область" -> listOf("иванов", "ivanovo")
+        "Владимирская область" -> listOf("владимир", "vladimir")
+        "Московская область" -> listOf("подмосков", "московск", "moscow region")
+        "Белгородская область" -> listOf("белгород", "belgorod")
+        "Курская область" -> listOf("курск", "kursk")
+        "Брянская область" -> listOf("брянск", "bryansk")
+        "Воронежская область" -> listOf("воронеж", "voronezh")
+        "Ростовская область" -> listOf("ростов", "rostov")
+        "Краснодарский край" -> listOf("краснодар", "кубан", "krasnodar")
+        "Ленинградская область" -> listOf("ленинград", "ленобласт", "петербург", "st. petersburg")
+        "Псковская область" -> listOf("псков", "pskov")
+        "Калужская область" -> listOf("калуг", "kaluga")
+        else -> emptyList()
+    } else emptyList()
+    return all.distinctBy { it.link }
+        .filter { regional.isEmpty() || regional.any { term -> it.title.contains(term, true) } }
+        .sortedByDescending { it.timestamp }.take(300)
 }
 
 private fun readFeed(feed: Feed): List<Story> {
@@ -356,12 +428,21 @@ private fun readFeed(feed: Feed): List<Story> {
     }
 }
 
+private fun detectLanguage(value: String): String {
+    if (value.any { it in 'А'..'я' || it == 'ё' || it == 'Ё' }) return "ru"
+    val lower = " " + value.lowercase(Locale.ROOT) + " "
+    val germanHints = listOf(" der ", " die ", " das ", " und ", " ist ", " für ", " mit ", "über ", "ä", "ö", "ü", "ß")
+    return if (germanHints.any { lower.contains(it) }) "de" else "en"
+}
+
 private fun parseDate(value: String): Long {
     if (value.isBlank()) return 0L
-    val patterns = listOf("EEE, dd MMM yyyy HH:mm:ss Z", "EEE, dd MMM yyyy HH:mm:ss z", "yyyy-MM-dd'T'HH:mm:ssXXX", "yyyy-MM-dd'T'HH:mm:ss'Z'")
-    for (pattern in patterns) try { return SimpleDateFormat(pattern, Locale.US).parse(value)?.time ?: 0L } catch (_: Exception) { }
+    val normalized = value.trim().replace(Regex("\\.[0-9]{1,9}(?=Z|[+-][0-9:]+$)"), "")
+    val patterns = listOf("EEE, dd MMM yyyy HH:mm:ss Z", "EEE, dd MMM yyyy HH:mm:ss z", "yyyy-MM-dd'T'HH:mm:ssXXX", "yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+    for (pattern in patterns) try { return SimpleDateFormat(pattern, Locale.US).parse(normalized)?.time ?: 0L } catch (_: Exception) { }
     return 0L
 }
+
 private fun formatDate(timestamp: Long): String =
     if (timestamp <= 0L) "Дата не указана" else SimpleDateFormat("dd.MM.yyyy · HH:mm", Locale.getDefault()).format(Date(timestamp))
 
@@ -386,7 +467,7 @@ private fun saveCachedStories(context: Context, stories: List<Story>) {
 }
 class FeedRefreshWorker(appContext: Context, params: WorkerParameters) : Worker(appContext, params) {
     override fun doWork(): Result = try {
-        val combined = (loadFeeds(0, "Все регионы") + loadFeeds(2, "Все регионы") + loadFeeds(5, "Все регионы")).distinctBy { it.link }.sortedByDescending { it.timestamp }.take(500)
+        val combined = (loadFeeds(0, "Все регионы") + loadFeeds(2, "Все регионы") + loadFeeds(4, "Все регионы") + loadFeeds(5, "Все регионы")).distinctBy { it.link }.sortedByDescending { it.timestamp }.take(500)
         if (combined.isNotEmpty()) saveCachedStories(applicationContext, combined)
         Result.success()
     } catch (_: Exception) { Result.retry() }
