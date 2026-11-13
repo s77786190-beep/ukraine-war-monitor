@@ -29,6 +29,8 @@ jobs:
         run: npm install
       - name: TypeScript check
         run: npx tsc --noEmit
+      - name: Restore launcher icon
+        run: base64 -d assets/kostroma-radar-icon.png.base64 > assets/kostroma-radar-icon.png
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
       - name: Build release APK
