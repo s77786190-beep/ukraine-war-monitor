@@ -1,13 +1,5 @@
 {
-  "expo": {
-    "name": "Мониторинг Костромской области",
-    "slug": "kostroma-monitor",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "android": {
-      "package": "ru.monitor.kostroma",
-      "versionCode": 1
-    }
-  }
+ "expo":{"name":"Мониторинг Костромской области","slug":"kostroma-monitor","version":"1.1.0","orientation":"portrait","userInterfaceStyle":"dark",
+ "android":{"package":"ru.monitor.kostroma","versionCode":2,"permissions":["INTERNET","ACCESS_NETWORK_STATE","RECEIVE_BOOT_COMPLETED","WAKE_LOCK"]},
+ "plugins":["expo-background-task"]}
 }
