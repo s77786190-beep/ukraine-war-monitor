@@ -39,19 +39,11 @@ private val SurfaceDark = Color(0xFF1B1B1B)
 private val Orange = Color(0xFFF0A23A)
 private val MainText = Color(0xFFE8E3D8)
 private val MutedText = Color(0xFFAAA69D)
-private val DarkColors = darkColorScheme(
-    primary = Orange,
-    onPrimary = Color(0xFF211507),
-    secondary = Orange,
-    background = Background,
-    surface = SurfaceDark,
-    onBackground = MainText,
-    onSurface = MainText,
-    surfaceVariant = Color(0xFF292722),
-    onSurfaceVariant = MutedText
-)
+private val DarkColors = darkColorScheme(primary = Orange, onPrimary = Color(0xFF211507), secondary = Orange,
+    background = Background, surface = SurfaceDark, onBackground = MainText, onSurface = MainText,
+    surfaceVariant = Color(0xFF292722), onSurfaceVariant = MutedText)
 
-data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long)
+data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long, val side: String = "Агрегатор")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,260 +54,256 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private val tabs = listOf("Сводка", "Официальные", "Неофициальные", "Регионы", "Соцсети", "Видео", "Карты")
+private val regions = listOf("Все регионы", "Костромская область", "Ивановская область", "Владимирская область",
+    "Московская область", "Белгородская область", "Курская область", "Брянская область", "Воронежская область",
+    "Ростовская область", "Краснодарский край", "Ленинградская область", "Псковская область", "Калужская область")
+
 @Composable
 fun MonitorScreen() {
     var stories by remember { mutableStateOf<List<Story>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Все") }
+    var tab by remember { mutableIntStateOf(0) }
     var search by remember { mutableStateOf("") }
-    var period by remember { mutableStateOf("За всё время") }
+    var region by remember { mutableStateOf(regions.first()) }
+    var regionMenu by remember { mutableStateOf(false) }
+    var period by remember { mutableStateOf("7 дней") }
     var pageSize by remember { mutableIntStateOf(20) }
     var page by remember { mutableIntStateOf(1) }
-    var showPageSizeMenu by remember { mutableStateOf(false) }
-    var showHelp by remember { mutableStateOf(false) }
-    val categories = listOf("Все", "Фронт", "Переговоры", "Международная реакция")
-    val periods = listOf("За всё время", "24 часа", "7 дней", "30 дней")
+    var pageMenu by remember { mutableStateOf(false) }
+    var help by remember { mutableStateOf(false) }
+    val periods = listOf("24 часа", "7 дней", "30 дней", "За всё время")
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    fun open(url: String) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     fun refresh() {
         scope.launch {
-            loading = true
-            error = ""
-            try {
-                stories = withContext(Dispatchers.IO) { loadFeeds(category) }
-                page = 1
-            } catch (e: Exception) {
-                error = "Не удалось обновить ленту. Проверьте подключение к интернету."
-            }
+            loading = true; error = ""
+            try { stories = withContext(Dispatchers.IO) { loadFeeds(tab, region) }; page = 1 }
+            catch (_: Exception) { error = "Часть лент недоступна. Попробуйте обновить или открыть источник напрямую." }
             loading = false
         }
     }
-    LaunchedEffect(category) { refresh() }
+    LaunchedEffect(tab, region) { if (tab in 0..3 || tab == 4 || tab == 5) refresh() }
 
     val cutoff = when (period) {
-        "24 часа" -> System.currentTimeMillis() - 24L * 60 * 60 * 1000
-        "7 дней" -> System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
-        "30 дней" -> System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+        "24 часа" -> System.currentTimeMillis() - 86400000L
+        "7 дней" -> System.currentTimeMillis() - 604800000L
+        "30 дней" -> System.currentTimeMillis() - 2592000000L
         else -> 0L
     }
-    val filtered = stories
-        .filter { it.timestamp >= cutoff }
+    val filtered = stories.filter { it.timestamp >= cutoff }
         .filter { search.isBlank() || it.title.contains(search, true) || it.source.contains(search, true) }
         .sortedByDescending { it.timestamp }
-    val pageCount = maxOf(1, minOf(5, (filtered.size + pageSize - 1) / pageSize))
+    val pageCount = maxOf(1, (filtered.size + pageSize - 1) / pageSize)
     val safePage = page.coerceIn(1, pageCount)
-    val visibleStories = filtered.drop((safePage - 1) * pageSize).take(pageSize)
+    val visible = filtered.drop((safePage - 1) * pageSize).take(pageSize)
 
-    Column(
-        Modifier.fillMaxSize().background(Background).padding(horizontal = 14.dp, vertical = 12.dp)
-    ) {
+    Column(Modifier.fillMaxSize().background(Background).padding(horizontal = 12.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("МОНИТОР ВОЙНЫ", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MainText)
-                Text("Лента событий · сначала новые", style = MaterialTheme.typography.bodySmall, color = MutedText)
+                Text("Разные источники · проверяйте первоисточники", style = MaterialTheme.typography.bodySmall, color = MutedText)
             }
-            TextButton(onClick = { showHelp = true }) { Text("Возможности", color = Orange) }
-        }
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = search,
-            onValueChange = { search = it; page = 1 },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            placeholder = { Text("Поиск по заголовку или источнику", color = MutedText) },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Orange, unfocusedBorderColor = Color(0xFF51483B),
-                focusedTextColor = MainText, unfocusedTextColor = MainText,
-                cursorColor = Orange
-            )
-        )
-        Spacer(Modifier.height(10.dp))
-        Text("ТЕМАТИКА", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            categories.forEach { c ->
-                FilterChip(
-                    selected = category == c,
-                    onClick = { category = c; page = 1 },
-                    label = { Text(c) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Orange, selectedLabelColor = Color(0xFF211507),
-                        labelColor = MainText
-                    )
-                )
-            }
+            TextButton(onClick = { help = true }) { Text("О приложении", color = Orange) }
         }
         Spacer(Modifier.height(8.dp))
-        Text("ПЕРИОД", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            periods.forEach { p ->
-                FilterChip(
-                    selected = period == p,
-                    onClick = { period = p; page = 1 },
-                    label = { Text(p) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Orange, selectedLabelColor = Color(0xFF211507),
-                        labelColor = MainText
-                    )
-                )
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            tabs.forEachIndexed { i, name ->
+                FilterChip(selected = tab == i, onClick = { tab = i; page = 1 },
+                    label = { Text(name) }, colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Orange, selectedLabelColor = Color(0xFF211507), labelColor = MainText))
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(
-                onClick = { refresh() },
-                colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Color(0xFF211507))
-            ) { Text("Обновить ленту", fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.width(12.dp))
-            if (loading) CircularProgressIndicator(Modifier.size(22.dp), color = Orange, strokeWidth = 2.dp)
-            Spacer(Modifier.weight(1f))
-            Box {
-                TextButton(onClick = { showPageSizeMenu = true }) {
-                    Text("$pageSize на странице  ▾", color = Orange)
-                }
-                DropdownMenu(expanded = showPageSizeMenu, onDismissRequest = { showPageSizeMenu = false }) {
-                    listOf(20, 30, 40, 50).forEach { count ->
-                        DropdownMenuItem(text = { Text("$count новостей") }, onClick = {
-                            pageSize = count; page = 1; showPageSizeMenu = false
-                        })
+        if (tab == 6) {
+            Text("ИНТЕРАКТИВНЫЕ КАРТЫ", color = Orange, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+            Text("Карты открываются на сайтах их авторов. Это независимые проекты с разными методиками и датами обновления.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
+            MapLink("DeepStateMap — карта линии фронта", "https://deepstatemap.live/", ::open)
+            MapLink("LostArmour — карта и база визуально подтверждённых потерь", "https://lostarmour.info/", ::open)
+            MapLink("Рыбарь — аналитика и карты", "https://rybar.ru/", ::open)
+            MapLink("Юрий Подоляка — видеоканал и обзоры карт", "https://www.youtube.com/results?search_query=Юрий+Подоляка+карта+фронта", ::open)
+            MapLink("Дивген — поиск проекта и карт", "https://yandex.ru/search/?text=Дивген+карта+СВО", ::open)
+            Text("Важно: карта не является независимым доказательством контроля территории. Сверяйте дату обновления и подтверждения.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+        } else if (tab == 4) {
+            Text("СОЦИАЛЬНЫЕ ПЛОЩАДКИ", color = Orange, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+            Text("Открывайте публичный поиск по площадкам. Закрытые профили и персональные ленты без авторизации недоступны агрегатору.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
+            MapLink("Telegram — публичные сообщения о фронте", "https://www.google.com/search?q=site%3At.me+фронт+сводка+Украина", ::open)
+            MapLink("X — сообщения очевидцев и аналитиков", "https://x.com/search?q=Ukraine%20war%20front%20updates&src=typed_query", ::open)
+            MapLink("Facebook — публичные публикации", "https://www.facebook.com/search/posts/?q=война%20Украина%20фронт", ::open)
+            MapLink("Instagram — публичные публикации", "https://www.instagram.com/explore/tags/ukrainewar/", ::open)
+            MapLink("Яндекс — поиск по открытым публикациям", "https://yandex.ru/search/?text=сводка+фронт+Украина", ::open)
+            Text("Автоматическое чтение Facebook/Instagram/X ограничено правилами площадок и API. Здесь не выдаются поисковые ссылки за уже собранные посты.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+        } else {
+            if (tab == 3) {
+                Text("РЕГИОН", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Box {
+                    OutlinedButton(onClick = { regionMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("$region  ▾", color = MainText)
+                    }
+                    DropdownMenu(expanded = regionMenu, onDismissRequest = { regionMenu = false }) {
+                        regions.forEach { r -> DropdownMenuItem(text = { Text(r) }, onClick = { region = r; regionMenu = false; page = 1 }) }
                     }
                 }
             }
-        }
-        if (error.isNotBlank()) {
-            Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("НАЙДЕНО: ${filtered.size}", color = MutedText, style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.weight(1f))
-            Text("Страница $safePage из $pageCount", color = MutedText, style = MaterialTheme.typography.labelMedium)
-        }
-        Spacer(Modifier.height(6.dp))
-        if (visibleStories.isEmpty() && !loading) {
-            Text("По выбранным фильтрам новостей нет. Измените период или поисковый запрос.", color = MutedText, modifier = Modifier.padding(12.dp))
-        }
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
-            contentPadding = PaddingValues(bottom = 8.dp)
-        ) {
-            items(visibleStories) { story ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.link)))
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceDark)
-                ) {
-                    Column(Modifier.padding(13.dp)) {
-                        Text(story.title, style = MaterialTheme.typography.titleMedium, color = MainText, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(9.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(color = Orange, shape = RoundedCornerShape(5.dp)) {
-                                Text(
-                                    story.source.ifBlank { "Источник не указан" },
-                                    color = Color(0xFF211507),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+            OutlinedTextField(value = search, onValueChange = { search = it; page = 1 },
+                modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Поиск по заголовку или источнику", color = MutedText) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Orange, unfocusedBorderColor = Color(0xFF51483B),
+                    focusedTextColor = MainText, unfocusedTextColor = MainText, cursorColor = Orange))
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("ПЕРИОД", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                periods.forEach { p ->
+                    TextButton(onClick = { period = p; page = 1 }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Text(if (period == p) "[$p]" else p, color = if (period == p) Orange else MutedText, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = { refresh() }, colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = Color(0xFF211507))) {
+                    Text("Обновить", fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(10.dp))
+                if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = Orange, strokeWidth = 2.dp)
+                Spacer(Modifier.weight(1f))
+                Box {
+                    TextButton(onClick = { pageMenu = true }) { Text("$pageSize на странице ▾", color = Orange) }
+                    DropdownMenu(expanded = pageMenu, onDismissRequest = { pageMenu = false }) {
+                        listOf(10, 20, 30, 50).forEach { n -> DropdownMenuItem(text = { Text("$n новостей") }, onClick = { pageSize = n; page = 1; pageMenu = false }) }
+                    }
+                }
+            }
+            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text("НАЙДЕНО: ${filtered.size}  ·  Страница $safePage из $pageCount", color = MutedText, style = MaterialTheme.typography.labelMedium)
+            if (visible.isEmpty() && !loading) Text("Публикаций по выбранным условиям нет. Попробуйте другой период или обновите ленту.", color = MutedText, modifier = Modifier.padding(12.dp))
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+                items(visible) { story ->
+                    Card(Modifier.fillMaxWidth().clickable { open(story.link) }, shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceDark)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(story.title, style = MaterialTheme.typography.titleMedium, color = MainText, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(7.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(color = Orange, shape = RoundedCornerShape(5.dp)) {
+                                    Text(story.source, color = Color(0xFF211507), style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
+                                }
+                                Spacer(Modifier.width(7.dp))
+                                Text(story.side, color = MutedText, style = MaterialTheme.typography.labelSmall)
+                                Spacer(Modifier.weight(1f))
+                                Text(formatDate(story.timestamp), color = MutedText, style = MaterialTheme.typography.labelSmall)
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Text(formatDate(story.timestamp), color = MutedText, style = MaterialTheme.typography.bodySmall)
+                            Text("Открыть публикацию ↗", color = Orange, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 5.dp))
                         }
-                        Spacer(Modifier.height(5.dp))
-                        Text("Открыть первоисточник  ↗", color = Orange, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(top = 5.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(onClick = { page = 1 }, enabled = safePage > 1) { Text("Первая", color = Orange) }
-            TextButton(onClick = { page = (safePage - 1).coerceAtLeast(1) }, enabled = safePage > 1) { Text("‹", color = Orange) }
-            (1..pageCount).forEach { p ->
-                TextButton(onClick = { page = p }) {
-                    Text("$p", color = if (p == safePage) Orange else MutedText, fontWeight = if (p == safePage) FontWeight.Bold else FontWeight.Normal)
-                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { page = 1 }, enabled = safePage > 1) { Text("В начало", color = Orange) }
+                TextButton(onClick = { page = (safePage - 1).coerceAtLeast(1) }, enabled = safePage > 1) { Text("‹", color = Orange) }
+                Text("$safePage / $pageCount", color = MainText)
+                TextButton(onClick = { page = (safePage + 1).coerceAtMost(pageCount) }, enabled = safePage < pageCount) { Text("›", color = Orange) }
+                TextButton(onClick = { page = pageCount }, enabled = safePage < pageCount) { Text("В конец", color = Orange) }
             }
-            TextButton(onClick = { page = (safePage + 1).coerceAtMost(pageCount) }, enabled = safePage < pageCount) { Text("›", color = Orange) }
-            TextButton(onClick = { page = pageCount }, enabled = safePage < pageCount) { Text("Последняя", color = Orange) }
         }
     }
+    if (help) AlertDialog(onDismissRequest = { help = false }, containerColor = SurfaceDark,
+        title = { Text("Источники и ограничения", color = MainText) },
+        text = { Text("Лента объединяет RSS нескольких российских и зарубежных СМИ, поисковые RSS Google и Яндекса, а также YouTube RSS по тематическим запросам. Вкладки карт и соцсетей дают прямой доступ к публичным страницам.\n\nИсточники могут ошибаться, публиковать пропаганду или непроверенные сообщения. Метка стороны означает тип/происхождение источника, а не подтверждение достоверности. Сообщения очевидцев требуют независимой проверки. Закрытые соцсети и произвольные личные аккаунты автоматически не читаются.", color = MainText) },
+        confirmButton = { TextButton(onClick = { help = false }) { Text("Закрыть", color = Orange) } })
+}
 
-    if (showHelp) {
-        AlertDialog(
-            onDismissRequest = { showHelp = false },
-            containerColor = SurfaceDark,
-            title = { Text("Возможности приложения", color = MainText) },
-            text = {
-                Text(
-                    "• Лента автоматически сортируется: новые публикации сверху.\n" +
-                    "• Поиск по заголовкам и названиям источников.\n" +
-                    "• Фильтры по тематике и периоду публикации.\n" +
-                    "• На странице можно показывать 20, 30, 40 или 50 новостей.\n" +
-                    "• До пяти страниц, переход к первой и последней.\n" +
-                    "• Нажатие на карточку открывает первоисточник.\n\n" +
-                    "Сейчас лента формируется через Google Новости RSS; это не полный охват всех каналов и соцсетей.",
-                    color = MainText
-                )
-            },
-            confirmButton = { TextButton(onClick = { showHelp = false }) { Text("Закрыть", color = Orange) } }
-        )
+@Composable
+private fun MapLink(title: String, url: String, open: (String) -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { open(url) }, colors = CardDefaults.cardColors(containerColor = SurfaceDark)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = MainText, modifier = Modifier.weight(1f))
+            Text("Открыть ↗", color = Orange, style = MaterialTheme.typography.labelMedium)
+        }
     }
 }
 
-private fun loadFeeds(category: String): List<Story> {
-    val query = when (category) {
-        "Фронт" -> "война Украина фронт продвижение войск"
-        "Переговоры" -> "Украина Россия переговоры окончание войны"
-        "Международная реакция" -> "Ukraine war international response"
-        else -> "война Украина фронт переговоры"
+private data class Feed(val url: String, val label: String, val side: String)
+
+private fun loadFeeds(tab: Int, region: String): List<Story> {
+    val query = when (tab) {
+        1 -> "официальное заявление Россия Украина война переговоры"
+        2 -> "военкор фронт сводка продвижение войск Украина"
+        3 -> if (region == "Все регионы") "БПЛА атака российские регионы губернатор" else "${region} БПЛА атака прилёт беспилотник"
+        5 -> "окончание войны Украина прогноз переговоры Россия"
+        else -> "война Украина фронт переговоры продвижение войск"
     }
-    val url = "https://news.google.com/rss/search?q=" + URLEncoder.encode(query, "UTF-8") + "&hl=ru&gl=UA&ceid=UA:ru"
+    val q = URLEncoder.encode(query, "UTF-8")
+    val feeds = mutableListOf<Feed>()
+    if (tab == 0 || tab == 1 || tab == 2 || tab == 3) {
+        feeds += Feed("https://news.google.com/rss/search?q=$q&hl=ru&gl=RU&ceid=RU:ru", "Google Новости", "Поисковый агрегатор")
+        feeds += Feed("https://news.yandex.ru/yandsearch?text=$q&format=rss", "Яндекс Новости", "Поисковый агрегатор")
+    }
+    if (tab == 0 || tab == 1 || tab == 2 || tab == 3) {
+        feeds += listOf(
+            Feed("https://tass.ru/rss/v2.xml", "ТАСС", "Российское СМИ"),
+            Feed("https://ria.ru/export/rss2/archive/index.xml", "РИА Новости", "Российское СМИ"),
+            Feed("https://russian.rt.com/rss", "RT", "Российское СМИ"),
+            Feed("https://feeds.bbci.co.uk/russian/rss.xml", "BBC Русская служба", "Международное СМИ"),
+            Feed("https://rss.dw.com/rdf/rss-ru-all", "DW", "Международное СМИ"),
+            Feed("https://www.theguardian.com/world/rss", "The Guardian", "Западное СМИ")
+        )
+    }
+    if (tab == 5) {
+        feeds += Feed("https://www.youtube.com/feeds/videos.xml?search_query=$q", "YouTube", "Видеопоиск")
+    }
+    if (tab == 2) {
+        feeds += listOf(
+            Feed("https://rsshub.app/telegram/channel/rybar", "Рыбарь / Telegram", "Неофициальный Telegram"),
+            Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка / Telegram", "Неофициальный Telegram"),
+            Feed("https://rsshub.app/telegram/channel/boris_rozhin", "Colonelcassad / Telegram", "Неофициальный Telegram")
+        )
+    }
+    val all = mutableListOf<Story>()
+    feeds.forEach { feed ->
+        try { all += readFeed(feed) } catch (_: Exception) { }
+    }
+    return all.distinctBy { it.link }.sortedByDescending { it.timestamp }.take(250)
+}
+
+private fun readFeed(feed: Feed): List<Story> {
+    val connection = URL(feed.url).openConnection().apply {
+        connectTimeout = 5000; readTimeout = 6000
+        setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
+    }
     val parser = Xml.newPullParser()
-    URL(url).openConnection().apply {
-        connectTimeout = 12000
-        readTimeout = 12000
-    }.getInputStream().use { input ->
+    connection.getInputStream().use { input ->
         parser.setInput(input, "UTF-8")
         val result = mutableListOf<Story>()
-        var title = ""
-        var link = ""
-        var source = "Google Новости"
-        var date = ""
+        var title = ""; var link = ""; var date = ""; var inside = false
         var event = parser.eventType
-        while (event != XmlPullParser.END_DOCUMENT && result.size < 100) {
-            if (event == XmlPullParser.START_TAG) when (parser.name) {
-                "item" -> { title = ""; link = ""; source = "Google Новости"; date = "" }
-                "title" -> title = parser.nextText()
-                "link" -> link = parser.nextText()
-                "pubDate" -> date = parser.nextText()
-                "source" -> source = parser.nextText()
+        while (event != XmlPullParser.END_DOCUMENT && result.size < 80) {
+            if (event == XmlPullParser.START_TAG) {
+                if (parser.name == "item" || parser.name == "entry") { inside = true; title = ""; link = ""; date = "" }
+                else if (inside && parser.name == "title") title = parser.nextText().trim()
+                else if (inside && parser.name == "link") {
+                    val href = parser.getAttributeValue(null, "href")
+                    link = if (!href.isNullOrBlank()) href else parser.nextText().trim()
+                } else if (inside && (parser.name == "pubDate" || parser.name == "published" || parser.name == "updated")) date = parser.nextText().trim()
             }
-            if (event == XmlPullParser.END_TAG && parser.name == "item" && title.isNotBlank() && link.isNotBlank()) {
-                result.add(Story(title, source, link, date, parseDate(date)))
+            if (event == XmlPullParser.END_TAG && (parser.name == "item" || parser.name == "entry")) {
+                if (title.isNotBlank() && link.startsWith("http")) result += Story(title, feed.label, link, date, parseDate(date), feed.side)
+                inside = false
             }
             event = parser.next()
         }
-        return result.sortedByDescending { it.timestamp }
+        return result
     }
 }
 
 private fun parseDate(value: String): Long {
     if (value.isBlank()) return 0L
-    return try {
-        SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US).parse(value)?.time ?: 0L
-    } catch (_: Exception) { 0L }
+    val patterns = listOf("EEE, dd MMM yyyy HH:mm:ss Z", "EEE, dd MMM yyyy HH:mm:ss z", "yyyy-MM-dd'T'HH:mm:ssXXX", "yyyy-MM-dd'T'HH:mm:ss'Z'")
+    for (pattern in patterns) try { return SimpleDateFormat(pattern, Locale.US).parse(value)?.time ?: 0L } catch (_: Exception) { }
+    return 0L
 }
-
-private fun formatDate(timestamp: Long): String {
-    if (timestamp <= 0L) return "Дата не указана"
-    return SimpleDateFormat("dd.MM.yyyy · HH:mm", Locale.getDefault()).format(Date(timestamp))
-}
+private fun formatDate(timestamp: Long): String =
+    if (timestamp <= 0L) "Дата не указана" else SimpleDateFormat("dd.MM.yyyy · HH:mm", Locale.getDefault()).format(Date(timestamp))
