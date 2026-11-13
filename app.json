@@ -5,13 +5,13 @@
     "version": "1.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "icon": "./assets/kostroma-radar-icon.png",
+    "icon": "./assets/kostroma-radar-icon.jpg",
     "android": {
       "package": "ru.monitor.kostroma",
       "versionCode": 2,
       "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "RECEIVE_BOOT_COMPLETED", "WAKE_LOCK"],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/kostroma-radar-icon.png",
+        "foregroundImage": "./assets/kostroma-radar-icon.jpg",
         "backgroundColor": "#080808"
       }
     },
