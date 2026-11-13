@@ -39,7 +39,7 @@ export async function refreshSources(){
      found.push({id:id(sid+link),source:name,title,text:txt,url:link,date,kind:group,category:category(title+" "+txt)});count++;
     }
    }
-   states.push({id:sid,status:count?"Найдены публикации":"Ответ получен; подходящих публикаций не найдено",checked});
+   states.push({id:sid,status:count?"Найдены публикации":"Сайт ответил; RSS или подходящих публикаций не обнаружено",checked});
   }catch(e){states.push({id:sid,status:"Недоступен: "+(e instanceof Error?e.message:"ошибка"),checked})}
  }
  const old=await getNews(), all=[...found,...old].filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i).sort((a,b)=>+new Date(b.date)-+new Date(a.date)).slice(0,1500);
