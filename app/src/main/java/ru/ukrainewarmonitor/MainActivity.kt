@@ -99,6 +99,7 @@ fun MonitorScreen() {
             loading = false
         }
     }
+    LaunchedEffect(Unit) { val cached = withContext(Dispatchers.IO) { readCachedStories(context) }; if (cached.isNotEmpty()) stories = cached }
     LaunchedEffect(tab, region) { if (tab in 0..5) refresh() }
 
     val cutoff = when (period) {
@@ -139,17 +140,7 @@ fun MonitorScreen() {
             MapLink("Юрий Подоляка — видеоканал и обзоры карт", "https://www.youtube.com/results?search_query=Юрий+Подоляка+карта+фронта", ::open)
             MapLink("Дивген — поиск проекта и карт", "https://yandex.ru/search/?text=Дивген+карта+СВО", ::open)
             Text("Важно: карта не является независимым доказательством контроля территории. Сверяйте дату обновления и подтверждения.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-        } else if (tab == 4) {
-            Text("СОЦИАЛЬНЫЕ ПЛОЩАДКИ", color = Orange, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-            Text("Открывайте публичный поиск по площадкам. Закрытые профили и персональные ленты без авторизации недоступны агрегатору.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
-            MapLink("Telegram — публичные сообщения о фронте", "https://www.google.com/search?q=site%3At.me+фронт+сводка+Украина", ::open)
-            MapLink("X — сообщения очевидцев и аналитиков", "https://x.com/search?q=Ukraine%20war%20front%20updates&src=typed_query", ::open)
-            MapLink("Facebook — публичные публикации", "https://www.facebook.com/search/posts/?q=война%20Украина%20фронт", ::open)
-            MapLink("Instagram — публичные публикации", "https://www.instagram.com/explore/tags/ukrainewar/", ::open)
-            MapLink("Яндекс — поиск по открытым публикациям", "https://yandex.ru/search/?text=сводка+фронт+Украина", ::open)
-            Text("Автоматическое чтение Facebook/Instagram/X ограничено правилами площадок и API. Здесь не выдаются поисковые ссылки за уже собранные посты.", color = MutedText, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-        } else {
-            if (tab == 3) {
+        } else {            if (tab == 3) {
                 Text("РЕГИОН", color = Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Box {
                     OutlinedButton(onClick = { regionMenu = true }, modifier = Modifier.fillMaxWidth()) {
@@ -268,7 +259,7 @@ internal fun loadFeeds(tab: Int, region: String): List<Story> {
     if (tab == 5) {
         feeds += Feed("https://www.youtube.com/feeds/videos.xml?search_query=$q", "YouTube", "Видеопоиск")
     }
-    if (tab == 2) {
+    if (tab == 0 || tab == 2 || tab == 4) {
         feeds += listOf(
             Feed("https://rsshub.app/telegram/channel/rybar", "Рыбарь / Telegram", "Неофициальный Telegram"),
             Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка / Telegram", "Неофициальный Telegram"),
