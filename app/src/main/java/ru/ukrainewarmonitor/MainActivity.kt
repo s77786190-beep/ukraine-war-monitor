@@ -342,13 +342,7 @@ internal fun loadFeeds(tab: Int, region: String, language: String = "Все яз
         }
         google("($terms) (БПЛА OR беспилотник OR дрон OR взрыв OR ПВО OR атака OR обстрел OR ракета)", "Google Новости · регион")
     } else if (tab == 4) {
-        feeds += listOf(
-            Feed("https://rsshub.app/telegram/channel/rybar", "Рыбарь · Telegram", "Публичный Telegram"),
-            Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка · Telegram", "Публичный Telegram"),
-            Feed("https://rsshub.app/telegram/channel/boris_rozhin", "Colonelcassad · Telegram", "Публичный Telegram"),
-            Feed("https://rsshub.rssforever.com/telegram/channel/rybar", "Рыбарь · резервная лента", "Публичный Telegram"),
-            Feed("https://rsshub.rssforever.com/telegram/channel/yurasumy", "Юрий Подоляка · резервная лента", "Публичный Telegram")
-        )
+        // Public Telegram pages are read directly first; RSSHub is only a fallback.
         google("site:t.me/s (Украина OR фронт OR БПЛА OR беспилотник OR обстрел)", "Google · публичные соцсети")
     } else {
         val query = when (tab) {
@@ -375,6 +369,16 @@ internal fun loadFeeds(tab: Int, region: String, language: String = "Все яз
     }
     val all = mutableListOf<Story>()
     var successful = 0
+    if (tab == 4 || tab == 0 || tab == 2) {
+        val channels = listOf(
+            Triple("rybar", "Рыбарь · Telegram", "Публичный Telegram"),
+            Triple("yurasumy", "Юрий Подоляка · Telegram", "Публичный Telegram"),
+            Triple("boris_rozhin", "Colonelcassad · Telegram", "Публичный Telegram")
+        )
+        channels.forEach { (channel, label, side) ->
+            try { all += readTelegramPublic(channel, label, side); successful++ } catch (_: Exception) { }
+        }
+    }
     feeds.forEach { feed -> try { all += readFeed(feed); successful++ } catch (_: Exception) { } }
     if (successful == 0) throw java.io.IOException("Источники не ответили. Проверьте соединение или повторите позже.")
     val regional = if (tab == 3) when (region) {
@@ -425,6 +429,32 @@ private fun readFeed(feed: Feed): List<Story> {
             event = parser.next()
         }
         return result
+    }
+}
+
+private fun readTelegramPublic(channel: String, label: String, side: String): List<Story> {
+    val connection = URL("https://t.me/s/$channel").openConnection().apply {
+        connectTimeout = 7000
+        readTimeout = 9000
+        setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36")
+    }
+    val html = connection.getInputStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+    val blocks = Regex("""<div class="tgme_widget_message_wrap.*?(?=<div class="tgme_widget_message_wrap|</section>)""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+        .findAll(html).toList()
+    return blocks.mapNotNull { match ->
+        val block = match.value
+        val post = Regex("""data-post="([^"]+)"""").find(block)?.groupValues?.get(1) ?: return@mapNotNull null
+        val rawText = Regex("""<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+            .find(block)?.groupValues?.get(1) ?: ""
+        val plain = rawText.replace(Regex("""<br\\s*/?>""", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("""<[^>]+>"""), " ")
+            .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            .replace("&quot;", "\"").replace("&#39;", "'").replace("&nbsp;", " ")
+            .replace(Regex("""\\s+"""), " ").trim()
+        if (plain.isBlank()) return@mapNotNull null
+        val date = Regex("""<time[^>]+datetime="([^"]+)"""").find(block)?.groupValues?.get(1) ?: ""
+        val title = plain.take(260)
+        Story(title, label, "https://t.me/$post", date, parseDate(date), side)
     }
 }
 
