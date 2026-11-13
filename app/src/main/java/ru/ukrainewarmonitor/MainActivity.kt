@@ -365,11 +365,11 @@ internal fun loadFeeds(tab: Int, region: String, language: String = "Все яз
             Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка · Telegram", "Публичный Telegram"),
             Feed("https://rsshub.app/telegram/channel/boris_rozhin", "Colonelcassad · Telegram", "Публичный Telegram")
         )
-        if (language == "English" && tab != 5) feeds += listOf(
+        if ((language == "English" || language == "Все языки") && tab != 5) feeds += listOf(
             Feed("https://feeds.bbci.co.uk/news/world/rss.xml", "BBC World · English", "Международное СМИ"),
             Feed("https://www.theguardian.com/world/rss", "The Guardian · English", "Международное СМИ")
         )
-        if (language == "Deutsch" && tab != 5) feeds += listOf(
+        if ((language == "Deutsch" || language == "Все языки") && tab != 5) feeds += listOf(
             Feed("https://rss.dw.com/rdf/rss-de-all", "DW · Deutsch", "Международное СМИ"),
             Feed("https://www.tagesschau.de/xml/rss2/", "Tagesschau · Deutsch", "Международное СМИ")
         )
