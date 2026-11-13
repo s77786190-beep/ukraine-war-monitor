@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Мониторинг Костромской области",
+    "slug": "kostroma-monitor",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "ru.monitor.kostroma",
+      "versionCode": 1
+    }
+  }
+}
