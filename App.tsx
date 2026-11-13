@@ -15,6 +15,7 @@ export default function App(){
  const chooseInterval=async(n:number)=>{setIntervalValue(n);await AsyncStorage.setItem("monitor_interval_minutes",String(n));if(bg)try{await setBackground(true,n)}catch(e){Alert.alert("Фоновый режим",String(e))}};
  const toggleBg=async(v:boolean)=>{try{await setBackground(v,interval);setBg(v)}catch(e){Alert.alert("Фоновый режим",String(e))}};
  
+ useEffect(()=>{const timer=setInterval(async()=>{if(AppState.currentState!=="active")return;try{const r=await refreshSources();setNews(r.news);setStates(r.states);const d=await AsyncStorage.getItem("km_last");if(d)setLast(d)}catch{}},interval*60000);return()=>clearInterval(timer)},[interval]);
  useEffect(()=>{const sub=AppState.addEventListener("change",async state=>{if(state==="active"){try{const [n,st,l]=await Promise.all([getNews(),getStates(),AsyncStorage.getItem("km_last")]);setNews(n);setStates(st);if(l)setLast(l)}catch{}}});return()=>sub.remove()},[]);
  const search=async()=>{if(!query.trim())return;setBusy(true);setResults([]);try{setResults(await searchPublic(query.trim()))}finally{setBusy(false)}};
  const effectiveInterval=bg?Math.max(15,interval):interval;const next=bg&&last?new Date(new Date(last).getTime()+effectiveInterval*60000).toLocaleString("ru-RU"):"не планируется";
