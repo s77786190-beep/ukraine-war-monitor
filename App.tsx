@@ -7,6 +7,43 @@ import {backgroundEnabled,setBackground} from "./src/background";
 import {getNews,getStates,refreshSources,searchPublic,sourcePrefs,setSource,News} from "./src/monitor";
 const orange="#FF861A";
 type Tab="Лента"|"Источники"|"Настройки"|"Разрешения"|"Карты";
+
+function mapLocation(item:News){
+ const raw=[item.title,item.text,...(item.facts||[])].join(" ");
+ const coordinate=raw.match(/(?:координат\w*|GPS|широт\w*|место)\s*[:=]?\s*(-?\d{2}[.,]\d{3,7})\s*[,; ]+\s*(-?\d{2}[.,]\d{3,7})/i)
+  || raw.match(/\b(5[6-9][.,]\d{3,7})\s*[,;]\s*(4[0-7][.,]\d{3,7})\b/);
+ if(coordinate){
+  const lat=Number(coordinate[1].replace(",","."));
+  const lon=Number(coordinate[2].replace(",","."));
+  if(lat>=56&&lat<=59.5&&lon>=40&&lon<=47.5)
+   return {kind:"coordinates" as const,label:"Точные координаты",url:"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(lat+","+lon)};
+ }
+ const cities=[
+  ["Кострома",/\bкостром(?:а|ы|е|у|ой|у)\b/i],
+  ["Буй",/\bбу(?:й|я|е|ю|ем)\b/i],
+  ["Шарья",/\bшарь(?:я|и|е|ю|ёй)\b/i],
+  ["Галич",/\bгалич(?:а|е|у|ом)?\b/i],
+  ["Нерехта",/\bнерехт(?:а|ы|е|у|ой)\b/i],
+  ["Волгореченск",/\bволгореченск(?:а|е|у|ом)?\b/i],
+  ["Мантурово",/\bмантуров(?:о|а|е|у|ым)?\b/i],
+  ["Макарьев",/\bмакарьев(?:а|е|у|ом)?\b/i],
+  ["Солигалич",/\bсолигалич(?:а|е|у|ом)?\b/i],
+  ["Чухлома",/\bчухлом(?:а|ы|е|у|ой)\b/i],
+  ["Кологрив",/\bкологрив(?:а|е|у|ом)?\b/i],
+  ["Нея",/\bне(?:я|и|е|ю)\b/i],
+  ["Судиславль",/\bсудиславл(?:ь|я|е|ю|ем)\b/i],
+  ["Поназырево",/\bпоназырев(?:о|а|е|у)\b/i],
+  ["Павино",/\bпавин(?:о|а|е|у)\b/i],
+  ["Антропово",/\bантропов(?:о|а|е|у)\b/i],
+  ["Островское",/\bостровск(?:ое|ого|ом|ому)\b/i],
+  ["Красное-на-Волге",/\bкрасное-на-волге\b/i],
+  ["Сусанино",/\bсусанин(?:о|а|е|у)\b/i]
+ ] as const;
+ const city=cities.find(([,pattern])=>pattern.test(raw));
+ if(city)return {kind:"city" as const,label:city[0],url:"https://www.openstreetmap.org/search?query="+encodeURIComponent(city[0]+", Костромская область, Россия")};
+ return null;
+}
+
 export default function App(){
  const refreshLock=useRef(false);
  const [tab,setTab]=useState<Tab>("Лента"),[news,setNews]=useState<News[]>([]),[states,setStates]=useState<any[]>([]),[prefs,setPrefs]=useState<Record<string,boolean>>({}),[interval,setIntervalValue]=useState(30),[bg,setBg]=useState(false),[busy,setBusy]=useState(false),[last,setLast]=useState(""),[query,setQuery]=useState(""),[results,setResults]=useState<News[]|null>(null),[filter,setFilter]=useState("Все"),[page,setPage]=useState(1),[period,setPeriod]=useState("Все время");
@@ -31,7 +68,7 @@ export default function App(){
  {!shown.length?<Text style={s.empty}>{results!==null?"По запросу публикаций не найдено.":"Пока нет сохранённых публикаций. Нажмите «Проверить»."}</Text>:shown.map(x=><View key={x.id} style={s.card}><Text style={s.muted}>{x.source} · {x.date&&Number.isFinite(Date.parse(x.date))?new Date(x.date).toLocaleString("ru-RU"):"Дата не указана"}</Text><Text style={s.head}>{x.title}</Text>{x.text!==x.title&&<Text style={s.body}>{x.text}</Text>}{!!x.facts?.length&&<Text style={s.muted}>{x.facts.join(" · ")}</Text>}<Text style={s.muted}>{x.verification||x.kind} · {x.category}</Text><Pressable onPress={()=>Linking.openURL(x.url)}><Text style={s.link}>Открыть оригинал ↗</Text></Pressable></View>)}</>}
  {tab==="Источники"&&<><Text style={s.section}>Подключённые источники: {SOURCES.length}</Text><Text style={s.muted}>Выключенный источник не опрашивается. Статус «недоступен» отделён от отсутствия новых публикаций.</Text>{SOURCES.map(([id,name,url,group])=><View key={id} style={s.source}><View style={{flex:1}}><Text style={s.white}>{name}</Text><Text style={s.muted}>{group} · {states.find(x=>x.id===id)?.status||"Ещё не проверялся"}</Text><Pressable onPress={()=>Linking.openURL(url)}><Text style={s.link}>Открыть источник</Text></Pressable></View><Switch value={prefs[id]!==false} onValueChange={async v=>{await setSource(id,v);setPrefs(p=>({...p,[id]:v}))}} trackColor={{true:"#8B4A15"}} thumbColor={prefs[id]!==false?orange:"#AAA"}/></View>)}</>}
  {tab==="Настройки"&&<><Text style={s.section}>Фоновый режим</Text><View style={s.row}><View style={{flex:1}}><Text style={s.white}>Разрешить работу в фоне</Text><Text style={s.muted}>Выключено — только ручная проверка. Включено — Android планирует обновление, когда это возможно.</Text></View><Switch value={bg} onValueChange={toggleBg} trackColor={{true:"#8B4A15"}} thumbColor={bg?orange:"#AAA"}/></View><Text style={s.section}>Интервал проверки</Text><Text style={s.muted}>В фоне минимальный интервал Android — 15 минут. ОС может задерживать запуск. 5 и 10 минут не гарантируются в фоне.</Text>{INTERVALS.map(n=><Pressable key={n} onPress={()=>chooseInterval(n)} style={[s.option,interval===n&&s.optionOn]}><Text style={{color:interval===n?orange:"#DDD"}}>{LABELS[n]}</Text><Text style={{color:orange}}>{interval===n?"●":"○"}</Text></Pressable>)}<Text style={s.section}>VPN и поисковики</Text><Text style={s.muted}>Собственного VPN в приложении нет. Если включить VPN в Android, приложение использует системное сетевое соединение. Обход блокировок не гарантируется.</Text></>}
- {tab==="Карты"&&<><Text style={s.section}>Интерактивные карты</Text><Text style={s.muted}>Карты открываются в браузере. Метки событий на этих сервисах формируются самими владельцами карт; приложение пока не ставит собственные координатные метки по новостям.</Text>{[["Инциденты на территории России","https://battlemap.online/conflicts/russia/en"],["Карта Костромы · OpenStreetMap","https://www.openstreetmap.org/search?query=Кострома"],["Костромская область · Google Maps","https://www.google.com/maps/search/?api=1&query=Костромская+область"],["Поиск инцидентов в регионе","https://www.google.com/search?q=Костромская+область+БПЛА+происшествия"]].map(([name,url])=><Pressable key={name} style={s.card} onPress={()=>Linking.openURL(url)}><Text style={s.white}>{name}</Text><Text style={s.link}>Открыть карту ↗</Text></Pressable>)}</>}
+ {tab==="Карты"&&<><Text style={s.section}>События на карте</Text><Text style={s.muted}>Метка ставится только при наличии координат в тексте публикации. Если координат нет, но распознан город Костромской области, открывается карта с поисковой отметкой этого города. Местоположение не додумывается.</Text>{news.map(item=>({item,place:mapLocation(item)})).filter(x=>x.place).slice(0,100).map(({item,place})=><View key={item.id} style={s.card}><Text style={s.muted}>{item.source} · {item.date?new Date(item.date).toLocaleString("ru-RU"):"Дата не указана"}</Text><Text style={s.head}>{item.title}</Text><Text style={s.muted}>{place!.kind==="coordinates"?"Координаты подтверждены текстом публикации":"Город определён по тексту публикации"} · {place!.label}</Text><Pressable onPress={()=>Linking.openURL(place!.url)}><Text style={s.link}>{place!.kind==="coordinates"?"Открыть метку координат":"Открыть город на карте"} ↗</Text></Pressable></View>)}{!news.some(item=>mapLocation(item))&&<Text style={s.empty}>Пока нет публикаций с распознанными координатами или городами. Новые события появятся после проверки источников.</Text>}<Text style={s.section}>Общие карты</Text>{[["Инциденты на территории России","https://battlemap.online/conflicts/russia/en"],["Карта Костромы · OpenStreetMap","https://www.openstreetmap.org/search?query=Кострома"],["Костромская область · Google Maps","https://www.google.com/maps/search/?api=1&query=Костромская+область"],["Поиск инцидентов в регионе","https://www.google.com/search?q=Костромская+область+БПЛА+происшествия"]].map(([name,url])=><Pressable key={name} style={s.card} onPress={()=>Linking.openURL(url)}><Text style={s.white}>{name}</Text><Text style={s.link}>Открыть карту ↗</Text></Pressable>)}</>}
  {tab==="Разрешения"&&<><Text style={s.section}>Что использует приложение</Text><View style={s.card}><Text style={s.white}>Интернет — требуется</Text><Text style={s.muted}>Загрузка открытых сайтов, Telegram preview и поисковых систем. Это базовое разрешение Android, отдельного переключателя для него обычно нет.</Text></View><View style={s.card}><Text style={s.white}>Фоновое планирование</Text><Text style={s.muted}>Только запуск обновления источников. Переключается на вкладке «Настройки».</Text></View><View style={s.card}><Text style={s.white}>Не запрашиваются</Text><Text style={s.muted}>Контакты, SMS, звонки, микрофон, камера, фотографии, файлы, геолокация и календарь.</Text></View><Pressable style={s.outline} onPress={()=>Linking.openSettings()}><Text style={s.link}>Открыть системные настройки приложения</Text></Pressable><Text style={s.section}>Сетевой фильтр</Text><Text style={s.muted}>Приложение отправляет запросы только к HTTPS-доменам настроенных источников и выбранных поисковых систем. Это внутренний список разрешённых доменов, а не системный firewall и не защита от взлома.</Text><Text style={s.section}>Хранение и передача</Text><Text style={s.muted}>Новости и настройки хранятся локально. Личная информация с телефона не считывается и на сервер не отправляется. Поисковый запрос передаётся Google, Bing или Яндексу, если вы запускаете поиск.</Text></>}
  <Text style={s.footer}>Публичные источники могут быть неполными или ошибаться. Сообщения из Telegram и неофициальных каналов не равны официальному подтверждению.</Text>
  </ScrollView></SafeAreaView>
