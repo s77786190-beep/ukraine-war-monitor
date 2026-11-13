@@ -2,8 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {SOURCES} from "./sources";
 export type News={id:string;source:string;title:string;text:string;url:string;date:string;kind:string;category:string;verification?:string};
 const KEY="km_news_v1", STATE="km_states_v1", PREF="km_sources_v1";
-const clean=(v:string)=>v.replace(/<script[\\s\\S]*?<\\/script>/gi," ").replace(/<style[\\s\\S]*?<\\/style>/gi," ").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ").replace(/&#(\\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\\s+/g," ").trim();
-const relevant=(v:string)=>/костром|буй\\b|шарья|волгоречен|галич|нейск|антропов|макарьев|мантуров|солигалич|чухлом|судислав|кологрив|павин|поназырев|кады/i.test(v);
+const clean=(v:string)=>v.replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
+const relevant=(v:string)=>/костром|буй\b|шарья|волгоречен|галич|нейск|антропов|макарьев|мантуров|солигалич|чухлом|судислав|кологрив|павин|поназырев|кады/i.test(v);
 const category=(v:string)=>/бпла|беспилот|дрон|пво|сбит|ракет|воздушн.{0,20}опасност|малоразмерн.{0,20}шар|аэростат/i.test(v)?"БПЛА / ракеты / тревоги":/пожар|авари|дтп|происшеств|взрыв|обломк|падени/i.test(v)?"Происшествия":"Другие новости";
 const hash=(v:string)=>{let h=0;for(let i=0;i<v.length;i++)h=(Math.imul(31,h)+v.charCodeAt(i))|0;return String(h);};
 async function getPrefs(){try{return JSON.parse((await AsyncStorage.getItem(PREF))||"{}")}catch{return {}}}
@@ -16,7 +16,7 @@ function parseDate(v:string,fallback:string){const d=new Date(v);return Number.i
 function parseTelegram(html:string,sid:string,name:string,url:string,group:string,checked:string):News[]{
  const out:News[]=[];const chunks=html.split('class="tgme_widget_message_wrap');
  for(const b of chunks.slice(1,60)){
-  const post=b.match(/data-post="([^"]+)"/)?.[1],raw=b.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\\s\\S]*?)<\\/div>/i)?.[1];
+  const post=b.match(/data-post="([^"]+)"/)?.[1],raw=b.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1];
   if(!post||!raw)continue;const txt=clean(raw);if(!txt||(!relevant(txt)&&sid!=="lpralarm"&&sid!=="vrv_radar"&&sid!=="locatorru"))continue;
   const dt=b.match(/<time[^>]*datetime="([^"]+)"/)?.[1]||checked;
   out.push({id:hash(sid+post),source:name,title:txt.slice(0,180),text:txt,url:"https://t.me/"+post,date:parseDate(dt,checked),kind:group,category:category(txt),verification:group==="Официальные"?"Официальный источник":"Неофициальное сообщение"});
@@ -24,13 +24,13 @@ function parseTelegram(html:string,sid:string,name:string,url:string,group:strin
  return out;
 }
 function parseRss(xml:string,sid:string,name:string,url:string,group:string,checked:string):News[]{
- const out:News[]=[];const blocks=xml.match(/<(item|entry)\\b[\\s\\S]*?<\\/(?:item|entry)>/gi)||[];
+ const out:News[]=[];const blocks=xml.match(/<(item|entry)\b[\s\S]*?<\/(?:item|entry)>/gi)||[];
  for(const b of blocks.slice(0,60)){
-  const title=clean((b.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)||[])[1]||"");
-  const link=clean((b.match(/<link[^>]*>([\\s\\S]*?)<\\/link>/i)||[])[1]||(b.match(/<link[^>]*href=["']([^"']+)["']/i)||[])[1]||"");
-  const body=clean((b.match(/<(description|summary|content:encoded)[^>]*>([\\s\\S]*?)<\\/(?:description|summary|content:encoded)>/i)||[])[2]||"");
+  const title=clean((b.match(/<title[^>]*>([\s\S]*?)<\/title>/i)||[])[1]||"");
+  const link=clean((b.match(/<link[^>]*>([\s\S]*?)<\/link>/i)||[])[1]||(b.match(/<link[^>]*href=["']([^"']+)["']/i)||[])[1]||"");
+  const body=clean((b.match(/<(description|summary|content:encoded)[^>]*>([\s\S]*?)<\/(?:description|summary|content:encoded)>/i)||[])[2]||"");
   if(!title||!link||(!relevant(title+" "+body)&&!url.includes("kostroma")))continue;
-  const rawDate=(b.match(/<(pubDate|published|updated|dc:date)[^>]*>([\\s\\S]*?)<\\/(?:pubDate|published|updated|dc:date)>/i)||[])[2]||checked;
+  const rawDate=(b.match(/<(pubDate|published|updated|dc:date)[^>]*>([\s\S]*?)<\/(?:pubDate|published|updated|dc:date)>/i)||[])[2]||checked;
   const target=absolute(link,url);if(!target)continue;
   out.push({id:hash(sid+target),source:name,title,text:body||title,url:target,date:parseDate(clean(rawDate),checked),kind:group,category:category(title+" "+body),verification:group==="Официальные"?"Официальный источник":"СМИ"});
  }
@@ -38,7 +38,7 @@ function parseRss(xml:string,sid:string,name:string,url:string,group:string,chec
 }
 function parseHtml(html:string,sid:string,name:string,url:string,group:string,checked:string):News[]{
  const out:News[]=[];const seen=new Set<string>();
- const re=/<a\\b[^>]*href=["']([^"'#]+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi;let m:RegExpExecArray|null;
+ const re=/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;let m:RegExpExecArray|null;
  while((m=re.exec(html))&&out.length<45){
   const href=absolute(m[1],url),title=clean(m[2]);
   if(!href||!title||title.length<24||title.length>240||seen.has(href))continue;
@@ -47,7 +47,7 @@ function parseHtml(html:string,sid:string,name:string,url:string,group:string,ch
   if(new URL(href).hostname!==new URL(url).hostname)continue;
   seen.add(href);
   const card=html.slice(Math.max(0,m.index-450),Math.min(html.length,m.index+900));
-  const time=card.match(/<time[^>]*(?:datetime=["']([^"']+)["'])?[^>]*>([\\s\\S]*?)<\\/time>/i);
+  const time=card.match(/<time[^>]*(?:datetime=["']([^"']+)["'])?[^>]*>([\s\S]*?)<\/time>/i);
   const date=parseDate(time?.[1]||time?.[2]||checked,checked);
   out.push({id:hash(sid+href),source:name,title,text:title,url:href,date,kind:group,category:category(title),verification:group==="Официальные"?"Официальный источник":"СМИ"});
  }
@@ -84,6 +84,6 @@ export async function searchPublic(q:string):Promise<News[]>{
  ] as const;
  const all:News[]=[];
  for(const [name,url] of providers){try{const r=await fetch(url);if(!r.ok)continue;all.push(...parseRss(await r.text(),name,name,url,"Поиск",new Date().toISOString()))}catch{}}
- try{const url="https://yandex.ru/search/?text="+term;const r=await fetch(url);if(r.ok){const h=await r.text(),links=h.match(/<a[^>]+href=["']https?:[^"']+["'][^>]*>[\\s\\S]*?<\\/a>/gi)||[];for(const a of links.slice(0,35)){const title=clean(a),href=(a.match(/href=["']([^"']+)["']/)||[])[1]||"";if(title.length>35&&href&&!href.includes("yandex."))all.push({id:hash(href),source:"Яндекс",title,text:title,url:href,date:new Date().toISOString(),kind:"Поиск",category:category(title),verification:"Результат поисковой выдачи"})}}}catch{}
+ try{const url="https://yandex.ru/search/?text="+term;const r=await fetch(url);if(r.ok){const h=await r.text(),links=h.match(/<a[^>]+href=["']https?:[^"']+["'][^>]*>[\s\S]*?<\/a>/gi)||[];for(const a of links.slice(0,35)){const title=clean(a),href=(a.match(/href=["']([^"']+)["']/)||[])[1]||"";if(title.length>35&&href&&!href.includes("yandex."))all.push({id:hash(href),source:"Яндекс",title,text:title,url:href,date:new Date().toISOString(),kind:"Поиск",category:category(title),verification:"Результат поисковой выдачи"})}}}catch{}
  return all.filter((x,i,a)=>a.findIndex(y=>y.url===x.url)===i).slice(0,100);
 }
