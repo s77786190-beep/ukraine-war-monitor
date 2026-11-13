@@ -5,6 +5,8 @@ const KEY="km_news_v1", STATE="km_states_v1", PREF="km_sources_v1";
 const clean=(v:string)=>v.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,"$1").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(Number(n))).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\s+/g," ").trim();
 const relevant=(v:string)=>/костром|буй\b|шарья|волгоречен|галич|нейск|антропов|макарьев|мантуров|солигалич|чухлом|судислав|кологрив|павин|поназырев|кады/i.test(v);
 const category=(v:string)=>/бпла|беспилот|дрон|пво|сбит|ракет|воздушн.{0,20}опасност|малоразмерн.{0,20}шар|аэростат/i.test(v)?"БПЛА / ракеты / тревоги":/пожар|авари|дтп|происшеств|взрыв|обломк|падени/i.test(v)?"Происшествия":"Другие новости";
+const SEARCH_HOSTS=new Set(["news.google.com","www.bing.com","yandex.ru"]);
+const allowedSourceHost=(url:string)=>{try{const host=new URL(url).hostname;return new URL(url).protocol==="https:"&&(SOURCES.some(s=>{try{return new URL(s[2]).hostname===host}catch{return false}})||SEARCH_HOSTS.has(host))}catch{return false}};
 const hash=(v:string)=>{let h=0;for(let i=0;i<v.length;i++)h=(Math.imul(31,h)+v.charCodeAt(i))|0;return String(h);};
 async function getPrefs(){try{return JSON.parse((await AsyncStorage.getItem(PREF))||"{}")}catch{return {}}}
 export async function sourcePrefs(){return getPrefs()}
@@ -55,6 +57,7 @@ function parseHtml(html:string,sid:string,name:string,url:string,group:string,ch
 }
 async function fetchOne(src:typeof SOURCES[number]){
  const [sid,name,url,group,mode]=src,checked=new Date().toISOString();
+ if(!allowedSourceHost(url))return {items:[] as News[],state:{id:sid,status:"Отклонён сетевым фильтром",checked}};
  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);
  try{
   const response=await fetch(url,{headers:{"Accept":"text/html,application/rss+xml,application/atom+xml,application/xml;q=0.9,*/*;q=0.8"},signal:controller.signal});
@@ -84,7 +87,7 @@ export async function searchPublic(q:string):Promise<News[]>{
   ["Bing Новости","https://www.bing.com/news/search?q="+term+"&format=rss"]
  ] as const;
  const all:News[]=[];
- for(const [name,url] of providers){try{const r=await fetch(url);if(!r.ok)continue;all.push(...parseRss(await r.text(),name,name,url,"Поиск",new Date().toISOString()))}catch{}}
- try{const url="https://yandex.ru/search/?text="+term;const r=await fetch(url);if(r.ok){const h=await r.text(),links=h.match(/<a[^>]+href=["']https?:[^"']+["'][^>]*>[\s\S]*?<\/a>/gi)||[];for(const a of links.slice(0,35)){const title=clean(a),href=(a.match(/href=["']([^"']+)["']/)||[])[1]||"";if(title.length>35&&href&&!href.includes("yandex."))all.push({id:hash(href),source:"Яндекс",title,text:title,url:href,date:"",kind:"Поиск",category:category(title),verification:"Результат поисковой выдачи"})}}}catch{}
+ for(const [name,url] of providers){try{if(!allowedSourceHost(url))continue;const r=await fetch(url);if(!r.ok)continue;all.push(...parseRss(await r.text(),name,name,url,"Поиск",new Date().toISOString()))}catch{}}
+ try{const url="https://yandex.ru/search/?text="+term;if(!allowedSourceHost(url))return all;const r=await fetch(url);if(r.ok){const h=await r.text(),links=h.match(/<a[^>]+href=["']https?:[^"']+["'][^>]*>[\s\S]*?<\/a>/gi)||[];for(const a of links.slice(0,35)){const title=clean(a),href=(a.match(/href=["']([^"']+)["']/)||[])[1]||"";if(title.length>35&&href&&!href.includes("yandex."))all.push({id:hash(href),source:"Яндекс",title,text:title,url:href,date:"",kind:"Поиск",category:category(title),verification:"Результат поисковой выдачи"})}}}catch{}
  return all.filter((x,i,a)=>a.findIndex(y=>y.url===x.url)===i).slice(0,100);
 }
