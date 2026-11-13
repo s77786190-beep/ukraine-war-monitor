@@ -56,7 +56,7 @@ private val DarkColors = darkColorScheme(primary = Orange, onPrimary = Color(0xF
     background = Background, surface = SurfaceDark, onBackground = MainText, onSurface = MainText,
     surfaceVariant = Color(0xFF292722), onSurfaceVariant = MutedText)
 
-data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long, val side: String = "Агрегатор") { val language: String get() = detectLanguage(title + " " + source) }
+data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long, val side: String = "Агрегатор") { val language: String get() = when { source.contains("Deutsch", true) -> "de"; source.contains("English", true) -> "en"; else -> detectLanguage(title) } }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
