@@ -56,7 +56,7 @@ private val DarkColors = darkColorScheme(primary = Orange, onPrimary = Color(0xF
     background = Background, surface = SurfaceDark, onBackground = MainText, onSurface = MainText,
     surfaceVariant = Color(0xFF292722), onSurfaceVariant = MutedText)
 
-data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long, val side: String = "Агрегатор") { val language: String get() = detectLanguage(title) }
+data class Story(val title: String, val source: String, val link: String, val date: String, val timestamp: Long, val side: String = "Агрегатор") { val language: String get() = detectLanguage(title + " " + source) }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -365,6 +365,14 @@ internal fun loadFeeds(tab: Int, region: String, language: String = "Все яз
             Feed("https://rsshub.app/telegram/channel/yurasumy", "Юрий Подоляка · Telegram", "Публичный Telegram"),
             Feed("https://rsshub.app/telegram/channel/boris_rozhin", "Colonelcassad · Telegram", "Публичный Telegram")
         )
+        if (language == "English" && tab != 5) feeds += listOf(
+            Feed("https://feeds.bbci.co.uk/news/world/rss.xml", "BBC World · English", "Международное СМИ"),
+            Feed("https://www.theguardian.com/world/rss", "The Guardian · English", "Международное СМИ")
+        )
+        if (language == "Deutsch" && tab != 5) feeds += listOf(
+            Feed("https://rss.dw.com/rdf/rss-de-all", "DW · Deutsch", "Международное СМИ"),
+            Feed("https://www.tagesschau.de/xml/rss2/", "Tagesschau · Deutsch", "Международное СМИ")
+        )
         if (tab == 5) feeds += Feed("https://www.youtube.com/feeds/videos.xml?search_query=" + URLEncoder.encode(query, "UTF-8"), "YouTube", "Видеопоиск")
     }
     val all = mutableListOf<Story>()
@@ -459,8 +467,10 @@ private fun readTelegramPublic(channel: String, label: String, side: String): Li
 }
 
 private fun detectLanguage(value: String): String {
-    if (value.any { it in 'А'..'я' || it == 'ё' || it == 'Ё' }) return "ru"
     val lower = " " + value.lowercase(Locale.ROOT) + " "
+    if (lower.contains(" deutsch ") || lower.contains("tagesschau")) return "de"
+    if (lower.contains(" english ") || lower.contains("bbc world") || lower.contains("guardian · english")) return "en"
+    if (value.any { it in 'А'..'я' || it == 'ё' || it == 'Ё' }) return "ru"
     val germanHints = listOf(" der ", " die ", " das ", " und ", " ist ", " für ", " mit ", "über ", "ä", "ö", "ü", "ß")
     return if (germanHints.any { lower.contains(it) }) "de" else "en"
 }
