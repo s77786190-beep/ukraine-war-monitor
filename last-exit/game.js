@@ -26,19 +26,63 @@ if(p.x>world.width-100){finish(true)}if(health<=0)finish(false)}
 function finish(ok){if(levelDone)return;levelDone=true;running=false;ui.endTitle.textContent=ok?"ПЕРЕПРАВА НАЙДЕНА":"ГОРОД НЕ ОТПУСТИЛ";ui.endCopy.textContent=ok?"Ты прошёл первую окраину. Это только первая глава пути из десяти.":"Попробуй другой маршрут, используй укрытия и аптечки.";ui.end.classList.remove("hidden")}
 function loop(t){if(!running)return;const dt=Math.min((t-last)/1000||0,.033);last=t;update(dt);draw();requestAnimationFrame(loop)}
 function draw(){ctx.clearRect(0,0,W,H);ctx.save();ctx.translate(-camera,0);background();ground();worldObjects();pickups.forEach(drawPickup);enemies.forEach(drawEnemy);bullets.forEach(b=>{ctx.fillStyle="#f5c68c";ctx.fillRect(b.x,b.y,13,3)});drawPlayer();particles.forEach(q=>{ctx.globalAlpha=Math.max(0,q.life*2);ctx.fillStyle="#b88c6b";ctx.fillRect(q.x,q.y,3,3)});ctx.globalAlpha=1;ctx.restore();drawVignette()}
-function background(){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#273441");g.addColorStop(.48,"#8a6556");g.addColorStop(.72,"#3a3436");g.addColorStop(1,"#141b21");ctx.fillStyle=g;ctx.fillRect(camera,0,W,H);
-ctx.fillStyle="#c18b69";ctx.globalAlpha=.35;ctx.beginPath();ctx.arc(camera+730,170,74,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
-for(let i=0;i<9;i++){const x=camera+i*340-((camera*.16)%340);const h=150+(i%3)*55;ctx.fillStyle=i%2?"#202a31":"#283039";ctx.fillRect(x,world.ground-h-80,220,h+80);ctx.fillStyle="#111a20";for(let j=0;j<5;j++)ctx.fillRect(x+15+j*40,world.ground-h+12,18,27);ctx.fillStyle="#6b5148";ctx.fillRect(x+30,world.ground-h-20,50,20)}
-ctx.fillStyle="#1a2228";ctx.fillRect(camera,365,W,75);for(let i=0;i<26;i++){const x=camera+i*48-((camera*.48)%48);ctx.fillStyle=i%2?"#31383a":"#252d30";ctx.fillRect(x,365,25,70)}}
-function ground(){ctx.fillStyle="#202629";ctx.fillRect(camera,world.ground,world.width,H-world.ground);ctx.fillStyle="#5b554c";ctx.fillRect(camera,world.ground,world.width,4);for(let i=0;i<100;i++){const x=camera+i*31-((camera*.8)%31);ctx.fillStyle=i%3?"#343b3b":"#6b5b4d";ctx.fillRect(x,world.ground+13+(i%4)*17, rnd(5,17),2)}}
+function background(){
+ const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,"#17232e");sky.addColorStop(.42,"#76574e");sky.addColorStop(.7,"#39383a");sky.addColorStop(1,"#171e23");ctx.fillStyle=sky;ctx.fillRect(camera,0,W,H);
+ const sunX=camera+720;const glow=ctx.createRadialGradient(sunX,185,8,sunX,185,190);glow.addColorStop(0,"#d69a70aa");glow.addColorStop(1,"#d69a7000");ctx.fillStyle=glow;ctx.fillRect(sunX-200,0,400,390);
+ ctx.fillStyle="#d59a72";ctx.globalAlpha=.52;ctx.beginPath();ctx.arc(sunX,185,43,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+ for(let i=0;i<10;i++){const x=camera+i*330-((camera*.13)%330),base=world.ground-40,h=155+(i%4)*43,w=230+(i%3)*32;
+  ctx.fillStyle=i%2?"#202b32":"#293139";ctx.beginPath();ctx.moveTo(x,base-h);ctx.lineTo(x+28,base-h-18);ctx.lineTo(x+70,base-h+3);ctx.lineTo(x+w,base-h+10);ctx.lineTo(x+w,base);ctx.lineTo(x,base);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#101a20";for(let j=0;j<4;j++){const wx=x+25+j*48,wy=base-h+42+(j%2)*36;ctx.fillRect(wx,wy,25,39);ctx.fillStyle="#4a403a";ctx.fillRect(wx+3,wy+3,19,2);ctx.fillStyle="#101a20";}
+  ctx.strokeStyle="#485057";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x+12,base-h+5);ctx.lineTo(x+47,base-h+48);ctx.lineTo(x+41,base-h+95);ctx.stroke();
+ }
+ ctx.fillStyle="#1a242a";ctx.fillRect(camera,363,W,77);
+ for(let i=0;i<26;i++){const x=camera+i*48-((camera*.48)%48);ctx.fillStyle=i%2?"#31383a":"#252d30";ctx.fillRect(x,363,25,77);}
+ for(let i=0;i<7;i++){const sx=camera+((i*181+performance.now()*.012)%(W+240))-100;ctx.fillStyle="#b8a18c";ctx.globalAlpha=.035;ctx.beginPath();ctx.ellipse(sx,300+(i%3)*26,90,12,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+}
+function ground(){
+ const g=ctx.createLinearGradient(0,world.ground,0,H);g.addColorStop(0,"#343432");g.addColorStop(1,"#151b1d");ctx.fillStyle=g;ctx.fillRect(camera,world.ground,world.width,H-world.ground);
+ ctx.strokeStyle="#5a5148";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(camera,world.ground+1);ctx.lineTo(camera+W,world.ground+1);ctx.stroke();
+ for(let i=0;i<100;i++){const x=camera+i*31-((camera*.8)%31),y=world.ground+12+(i%5)*18;ctx.strokeStyle=i%4?"#444440":"#6d5e50";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+8+(i%7)*2,y-1);ctx.stroke();}
+ ctx.fillStyle="#111719";for(let i=0;i<8;i++){const x=camera+i*137-((camera*.7)%137);ctx.beginPath();ctx.ellipse(x,world.ground+60+(i%3)*12,22,5,0,0,Math.PI*2);ctx.fill();}
+}
 function worldObjects(){// collapsed road, bridge and low underpass route
 ctx.fillStyle="#42403c";ctx.fillRect(700,world.ground-95,180,95);ctx.fillStyle="#1b2529";ctx.fillRect(700,world.ground-95,180,8);ctx.fillStyle="#756452";ctx.fillRect(1260,world.ground-125,310,18);ctx.fillStyle="#242a2b";ctx.fillRect(1280,world.ground-107,28,107);ctx.fillRect(1530,world.ground-107,28,107);
 ctx.fillStyle="#111c22";ctx.fillRect(1280,world.ground-27,250,27);ctx.fillStyle="#53616a";ctx.fillRect(1280,world.ground-9,250,2);
 ctx.fillStyle="#5b4a3c";ctx.fillRect(1880,world.ground-48,90,48);ctx.fillStyle="#262e31";ctx.fillRect(1890,world.ground-58,75,12);ctx.fillStyle="#9c7558";ctx.fillRect(2460,world.ground-110,12,110);ctx.fillRect(2510,world.ground-110,12,110)}
-function drawPlayer(){const p=player;ctx.save();ctx.translate(p.x,p.y);ctx.scale(p.face,1);const stride=Math.sin(performance.now()/95)*3;
-ctx.fillStyle="#111416";ctx.fillRect(-10,58,9,21);ctx.fillRect(3,58+stride,9,21);ctx.fillStyle="#282a2b";ctx.fillRect(-12,75,14,6);ctx.fillRect(1,75+stride,15,6);
-ctx.fillStyle="#292b2b";ctx.beginPath();ctx.moveTo(-13,25);ctx.lineTo(13,25);ctx.lineTo(19,77);ctx.lineTo(5,74);ctx.lineTo(0,45);ctx.lineTo(-6,77);ctx.lineTo(-19,78);ctx.closePath();ctx.fill();ctx.fillStyle="#4b4640";ctx.fillRect(-3,27,3,40);ctx.fillStyle="#c0a48a";ctx.fillRect(-7,3,14,21);ctx.fillStyle="#272626";ctx.fillRect(-8,0,16,6);ctx.fillStyle="#34383a";ctx.fillRect(7,29,19,5);ctx.fillStyle="#111";ctx.fillRect(21,28,14,3);ctx.fillStyle="#8d8980";ctx.fillRect(34,27,5,4);ctx.restore()}
-function drawEnemy(e){if(e.hp<=0)return;ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle="#181b1c";ctx.fillRect(-10,43,9,25);ctx.fillRect(3,43,9,25);ctx.fillStyle="#49443d";ctx.fillRect(-14,18,28,30);ctx.fillStyle="#b49a7c";ctx.fillRect(-7,0,14,18);ctx.fillStyle="#242323";ctx.fillRect(-9,-2,18,6);ctx.fillStyle="#272b2c";ctx.fillRect(e.dir*9,23,e.dir*17,5);ctx.restore()}
+function drawPlayer(){
+ const p=player,t=performance.now()/1000,moving=Math.abs(p.vx)>.1,stride=moving?Math.sin(t*12)*8:Math.sin(t*2)*1.2,coat=Math.sin(t*8)*2;
+ ctx.save();ctx.translate(p.x,p.y);ctx.scale(p.face,1);
+ ctx.fillStyle="#0b0e10";ctx.globalAlpha=.42;ctx.beginPath();ctx.ellipse(0,78,24,5,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+ // boots and articulated legs
+ ctx.strokeStyle="#171a1b";ctx.lineWidth=8;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(-6,53);ctx.lineTo(-8+stride,70);ctx.moveTo(6,53);ctx.lineTo(8-stride,70);ctx.stroke();
+ ctx.fillStyle="#242321";ctx.beginPath();ctx.moveTo(-15+stride,68);ctx.lineTo(-1+stride,68);ctx.lineTo(2+stride,76);ctx.lineTo(-17+stride,76);ctx.closePath();ctx.fill();
+ ctx.beginPath();ctx.moveTo(2-stride,68);ctx.lineTo(15-stride,68);ctx.lineTo(20-stride,76);ctx.lineTo(1-stride,76);ctx.closePath();ctx.fill();
+ // long wool coat with flared hem
+ const coatGrad=ctx.createLinearGradient(-18,20,19,76);coatGrad.addColorStop(0,"#3c3c38");coatGrad.addColorStop(.5,"#242a2a");coatGrad.addColorStop(1,"#171d20");ctx.fillStyle=coatGrad;
+ ctx.beginPath();ctx.moveTo(-10,20);ctx.quadraticCurveTo(-17,34,-15,49);ctx.lineTo(-20+coat,77);ctx.quadraticCurveTo(-7,74,0,69);ctx.quadraticCurveTo(9,76,20+coat,77);ctx.lineTo(14,47);ctx.quadraticCurveTo(17,31,9,20);ctx.closePath();ctx.fill();
+ ctx.strokeStyle="#62605a";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,23);ctx.lineTo(-2,68);ctx.moveTo(-11,42);ctx.lineTo(-14,64);ctx.stroke();
+ ctx.fillStyle="#171d20";ctx.beginPath();ctx.moveTo(-8,20);ctx.lineTo(0,29);ctx.lineTo(8,20);ctx.lineTo(5,37);ctx.lineTo(0,42);ctx.lineTo(-5,37);ctx.closePath();ctx.fill();
+ // collar, neck, head and hair
+ ctx.fillStyle="#b18f77";ctx.fillRect(-4,15,8,8);ctx.fillStyle="#b99b83";ctx.beginPath();ctx.ellipse(0,9,7,9,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#272522";ctx.beginPath();ctx.moveTo(-8,7);ctx.quadraticCurveTo(-9,-3,1,-3);ctx.quadraticCurveTo(9,-2,8,5);ctx.lineTo(5,2);ctx.lineTo(-5,3);ctx.closePath();ctx.fill();
+ ctx.fillStyle="#332c28";ctx.fillRect(3,9,3,2);
+ // arm and suppressed pistol
+ ctx.strokeStyle="#292b29";ctx.lineWidth=6;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(8,29);ctx.lineTo(15,38);ctx.lineTo(23,34);ctx.stroke();
+ ctx.fillStyle="#b3957d";ctx.beginPath();ctx.arc(23,34,3,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#17191a";ctx.fillRect(21,30,17,4);ctx.fillRect(34,31,9,2);ctx.fillRect(23,34,4,7);
+ ctx.restore();
+}
+function drawEnemy(e){
+ if(e.hp<=0)return;const t=performance.now()/1000,step=Math.sin(t*7+e.x*.01)*3;
+ ctx.save();ctx.translate(e.x,e.y);ctx.scale(e.dir,1);
+ ctx.fillStyle="#0b0e10";ctx.globalAlpha=.4;ctx.beginPath();ctx.ellipse(0,68,20,4,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+ ctx.strokeStyle="#15191a";ctx.lineWidth=7;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(-6,43);ctx.lineTo(-7+step,65);ctx.moveTo(6,43);ctx.lineTo(7-step,65);ctx.stroke();
+ ctx.fillStyle="#292c2b";ctx.beginPath();ctx.moveTo(-13,17);ctx.lineTo(12,17);ctx.lineTo(15,47);ctx.lineTo(-14,47);ctx.closePath();ctx.fill();
+ ctx.strokeStyle="#3a3b37";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-10,23);ctx.lineTo(-17,39);ctx.moveTo(10,23);ctx.lineTo(17,36);ctx.stroke();
+ ctx.fillStyle="#ad8e76";ctx.beginPath();ctx.ellipse(0,8,7,9,0,0,Math.PI*2);ctx.fill();ctx.fillStyle="#211f1d";ctx.beginPath();ctx.moveTo(-8,6);ctx.lineTo(-7,-2);ctx.lineTo(7,-2);ctx.lineTo(9,5);ctx.closePath();ctx.fill();
+ ctx.fillStyle="#171a1b";ctx.fillRect(14,34,15,3);ctx.fillRect(27,35,5,2);
+ ctx.restore();
+}
 function drawPickup(p){if(p.taken)return;ctx.fillStyle=p.type==="med"?"#a7a38b":"#a98b62";ctx.fillRect(p.x-10,p.y-13,20,13);ctx.fillStyle="#202629";ctx.fillRect(p.x-5,p.y-8,10,3);if(p.type==="med"){ctx.fillStyle="#ddd7c8";ctx.fillRect(p.x-2,p.y-11,4,9)}}
 function drawVignette(){const g=ctx.createRadialGradient(W/2,H/2,100,W/2,H/2,560);g.addColorStop(.55,"#0000");g.addColorStop(1,"#05080dcc");ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
 reset();
