@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#090909"><title>Голосовой музыкальный помощник</title>
+<style>
+:root{color-scheme:dark;--bg:#090909;--panel:#171717;--line:#333;--orange:#ff8a24;--muted:#bdbdbd}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f6f6f6;font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:760px;margin:auto;padding:26px 20px 48px}.brand{font-size:13px;letter-spacing:.16em;color:var(--orange);font-weight:800}
+h1{font-size:clamp(27px,6vw,38px);line-height:1.15;margin:10px 0 8px}.sub{color:var(--muted);margin:0 0 24px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin:16px 0}
+button,input{font:inherit}button{border:0;border-radius:13px;padding:14px 18px;font-weight:750;cursor:pointer}
+.primary{background:var(--orange);color:#17100a}.secondary{background:#292929;color:#fff;border:1px solid #444}
+#listen{width:100%;font-size:19px;min-height:62px}.status{margin-top:12px;color:#ddd;min-height:28px}.hint{font-size:14px;color:var(--muted)}
+.searchrow{display:flex;gap:10px}.searchrow input{min-width:0;flex:1;background:#0d0d0d;color:#fff;border:1px solid #555;border-radius:12px;padding:13px}
+.track{display:grid;grid-template-columns:64px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--line)}.track img{width:64px;height:64px;border-radius:8px}.track h3{font-size:16px;margin:0 0 3px}.track p{font-size:14px;color:var(--muted);margin:0 0 9px}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{padding:9px 12px;font-size:14px}
+audio{width:100%;margin-top:12px}a{color:#ffad69}.warning{font-size:14px;color:#cfcfcf}.footer{font-size:13px;color:#999;margin-top:26px}
+@media(max-width:430px){main{padding:20px 14px 36px}.panel{padding:16px}.searchrow{flex-direction:column}.searchrow button{width:100%}}
+</style></head>
+<body><main>
+<div class="brand">VOICE / MUSIC</div><h1>Музыка голосом</h1><p class="sub">Скажите, что хотите послушать. Помощник найдёт композицию и включит доступный фрагмент.</p>
+<section class="panel">
+<button id="listen" class="primary">● Начать голосовой режим</button>
+<div id="status" class="status" aria-live="polite">Нажмите кнопку и произнесите запрос.</div>
+<p class="hint">Например: «Включи Depeche Mode Enjoy the Silence» или «Найди музыку для ночной поездки».</p>
+</section>
+<section class="panel"><h2 style="font-size:20px;margin:0 0 14px">Поиск музыки</h2>
+<form id="form" class="searchrow"><input id="query" placeholder="Название песни или исполнитель" autocomplete="off" aria-label="Название песни или исполнитель"><button class="primary">Найти</button></form>
+<div id="results" aria-live="polite"></div><audio id="player" controls hidden></audio>
+</section>
+<section class="panel"><h2 style="font-size:19px;margin:0 0 8px">Скачивание без риска</h2><p class="warning">Полные треки скачиваются только там, где правообладатель разрешает загрузку: через официальные магазины и сервисы. Здесь можно прослушать короткий официальный preview и перейти к странице композиции. Обход защиты и скачивание чужих полных записей не выполняются.</p></section>
+<p class="footer">Поиск выполняется через каталог Apple/iTunes. Голосовое распознавание зависит от поддержки браузера и разрешения микрофона.</p>
+</main>
+<script>
+const statusEl=document.querySelector('#status'), input=document.querySelector('#query'), results=document.querySelector('#results'), player=document.querySelector('#player');
+function say(t){statusEl.textContent=t}
+async function search(q){if(!q.trim())return;say('Ищу композиции…');results.textContent='';player.hidden=true;
+try{const url='https://itunes.apple.com/search?term='+encodeURIComponent(q)+'&entity=song&limit=12&country=UA';const res=await fetch(url);if(!res.ok)throw Error('Поиск временно недоступен');const data=await res.json();if(!data.results?.length){say('Ничего не найдено. Попробуйте другое название.');return}
+say('Найдено: '+data.results.length+'. Выберите композицию.');data.results.forEach((t)=>{const item=document.createElement('article');item.className='track';const img=document.createElement('img');img.src=t.artworkUrl100||'';img.alt='Обложка';const body=document.createElement('div');const h=document.createElement('h3');h.textContent=t.trackName;const p=document.createElement('p');p.textContent=t.artistName+' · '+t.collectionName;const actions=document.createElement('div');actions.className='actions';
+const play=document.createElement('button');play.className='secondary';play.textContent='▶ Слушать фрагмент';play.onclick=()=>{if(!t.previewUrl){say('Для этой композиции preview недоступен.');return}player.src=t.previewUrl;player.hidden=false;player.play().catch(()=>say('Нажмите Play в аудиоплеере.'));say('Воспроизводится короткий preview: '+t.trackName)};
+const official=document.createElement('button');official.className='secondary';official.textContent='Официальная страница';official.onclick=()=>window.open(t.trackViewUrl,'_blank','noopener');
+actions.append(play,official);body.append(h,p,actions);item.append(img,body);results.append(item)})}
+catch(e){say('Не удалось выполнить поиск. Проверьте интернет и повторите попытку.')}
+}
+document.querySelector('#form').addEventListener('submit',e=>{e.preventDefault();search(input.value)});
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition=null, listening=false;
+if(SR){recognition=new SR();recognition.lang='ru-RU';recognition.interimResults=false;recognition.maxAlternatives=1;recognition.onstart=()=>{listening=true;document.querySelector('#listen').textContent='■ Слушаю…';say('Говорите запрос.')};recognition.onend=()=>{listening=false;document.querySelector('#listen').textContent='● Начать голосовой режим'};recognition.onerror=()=>say('Не удалось распознать речь. Проверьте разрешение микрофона.');recognition.onresult=e=>{const phrase=e.results[0][0].transcript;input.value=phrase;say('Распознано: «'+phrase+'»');const q=phrase.replace(/^(включи|включить|найди|поставь|поищи|скачай мне)\s+/i,'').replace(/\s+(скачай мне|скачай|найди|поставь)$/i,'').trim();search(q)}}
+document.querySelector('#listen').onclick=()=>{if(!recognition){say('Голосовое распознавание не поддерживается этим браузером. Используйте поиск текстом.');return}if(listening)recognition.stop();else{try{recognition.start()}catch(e){say('Голосовой режим уже запускается.')}}};
+if(!SR)say('Голосовой режим не поддерживается в этом браузере. Поиск текстом доступен.');
+</script></body></html>
