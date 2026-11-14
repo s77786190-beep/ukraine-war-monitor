@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#101318">
+  <title>Последний выход — прототип</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="game-shell">
+    <canvas id="game" aria-label="Игровая сцена"></canvas>
+    <section id="hud">
+      <div class="hud-top">
+        <div><span class="eyebrow">ПОСЛЕДНИЙ ВЫХОД</span><strong id="level-label">ГЛАВА 01 · ОКРАИНА</strong></div>
+        <div class="stats"><span id="health">ЗДОРОВЬЕ 100</span><span id="ammo">9 / 27</span></div>
+      </div>
+      <div id="message" role="status">Город уже затихает. Найди путь наружу.</div>
+    </section>
+    <section id="controls" aria-label="Управление">
+      <div class="move-controls">
+        <button data-action="left" aria-label="Влево">◀</button>
+        <button data-action="right" aria-label="Вправо">▶</button>
+        <button data-action="jump" aria-label="Прыжок">↟</button>
+      </div>
+      <div class="combat-controls">
+        <button data-action="knife" class="knife">НОЖ</button>
+        <button data-action="fire" class="fire">ОГОНЬ</button>
+        <button data-action="interact">ДЕЙСТВИЕ</button>
+      </div>
+    </section>
+    <div id="start-screen" class="overlay">
+      <div class="panel">
+        <p class="eyebrow">ИНТЕРАКТИВНЫЙ ПРОТОТИП · 2D SURVIVAL</p>
+        <h1>ПОСЛЕДНИЙ<br>ВЫХОД</h1>
+        <p>Разрушенный город. Последние минуты заката. Один путь — если сумеешь его найти.</p>
+        <button id="start-button">НАЧАТЬ</button>
+        <small>Демо: глава 01. Сенсорное управление и клавиатура.</small>
+      </div>
+    </div>
+    <div id="end-screen" class="overlay hidden">
+      <div class="panel">
+        <p class="eyebrow">ГЛАВА 01 · ЗАВЕРШЕНО</p>
+        <h2 id="end-title">ПЕРЕПРАВА НАЙДЕНА</h2>
+        <p id="end-copy">Ты выбрался из этого квартала. Дальше город становится только тише.</p>
+        <button id="restart-button">ЕЩЁ РАЗ</button>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
