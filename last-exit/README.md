@@ -13,3 +13,5 @@
 
 
 Сценарий Android-сборки обновлён: устранена установка устаревшего пакета SDK tools.
+
+Android build toolchain updated to Java 21.
