@@ -43,13 +43,16 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
-          p = Path("android/app/src/main/AndroidManifest.xml")
-          s = p.read_text()
-          s, n = re.subn(r'(<activity\b(?=[^>]*android:name="[^"]*MainActivity")[^>]*)(>)', r'\1 android:screenOrientation="landscape"\2', s, count=1)
-          if n != 1:
-              raise SystemExit("MainActivity declaration not found")
-          p.write_text(s)
+          import xml.etree.ElementTree as ET
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          tree = ET.parse(manifest)
+          android = "{http://schemas.android.com/apk/res/android}"
+          activities = [node for node in tree.getroot().iter("activity") if "MainActivity" in node.attrib.get(android + "name", "")]
+          if len(activities) != 1:
+              raise SystemExit("Expected exactly one MainActivity")
+          activities[0].set(android + "screenOrientation", "landscape")
+          ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+          tree.write(manifest, encoding="utf-8", xml_declaration=True)
           PY
       - name: Sync Capacitor
         working-directory: last-exit
