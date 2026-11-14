@@ -1,0 +1,16 @@
+{
+  "name": "last-exit-game",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Атмосферный 2D survival shooter для Android",
+  "scripts": {
+    "build": "mkdir -p www && cp index.html style.css game.js www/"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}
