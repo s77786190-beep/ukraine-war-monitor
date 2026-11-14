@@ -38,6 +38,19 @@ jobs:
       - name: Add Android platform
         working-directory: last-exit
         run: npx cap add android
+      - name: Force Android landscape orientation
+        working-directory: last-exit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          s, n = re.subn(r'(<activity\\b(?=[^>]*android:name="[^"]*MainActivity")[^>]*)(>)', r'\\1 android:screenOrientation="landscape"\\2', s, count=1)
+          if n != 1:
+              raise SystemExit("MainActivity declaration not found")
+          p.write_text(s)
+          PY
       - name: Sync Capacitor
         working-directory: last-exit
         run: npx cap sync android
