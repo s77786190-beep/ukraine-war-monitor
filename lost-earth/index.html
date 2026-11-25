@@ -51,9 +51,9 @@ input[type=range],select{width:100%;accent-color:var(--orange)}select{background
 <div id="hint">W A S D — движение · МЫШЬ — обзор · SHIFT — ускорение<br>F — полёт · G — погружение · H — скрыть интерфейс · ESC — освободить курсор</div>
 <div id="bottom"><button class="btn" id="hide">СКРЫТЬ ИНТЕРФЕЙС · H</button><button class="btn" id="reset">ВЕРНУТЬСЯ НА БЕРЕГ</button></div>
 </div>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
-<script type="module">
-import * as THREE from 'three';
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script>
+if(!window.THREE){document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;inset:0;background:#080807;color:#ffb36e;display:grid;place-items:center;padding:24px;text-align:center;z-index:9999">Не удалось загрузить 3D-библиотеку Three.js. Проверь подключение к интернету и обнови страницу.</div>');throw new Error('Three.js CDN failed to load');}
 const host=document.getElementById('scene');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9aabb0);scene.fog=new THREE.FogExp2(0x9aabb0,.0015);
 const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,1800);camera.position.set(0,3,18);
