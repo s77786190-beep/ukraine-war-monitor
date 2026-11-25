@@ -1,0 +1,24 @@
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  await page.goto('http://127.0.0.1:8080/lost-earth/', { waitUntil: 'networkidle', timeout: 60000 });
+  await page.waitForSelector('#scene canvas', { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  const canvas = await page.locator('#scene canvas').count();
+  const size = await page.locator('#scene canvas').evaluate(c => ({ w: c.width, h: c.height }));
+  if (!canvas || !size.w || !size.h) throw new Error('3D canvas missing or zero-sized');
+  await page.locator('#hide').click();
+  const hidden = await page.locator('#settings').evaluate(e => e.classList.contains('hidden'));
+  if (!hidden) throw new Error('Hide UI button did not hide settings');
+  await page.locator('#reset').click({ force: true });
+  await page.locator('#fly').click({ force: true });
+  const active = await page.locator('#fly').evaluate(e => e.classList.contains('active'));
+  if (!active) throw new Error('Fly mode button did not activate');
+  if (errors.length) throw new Error('Browser errors: ' + errors.join(' | '));
+  console.log('PASS: WebGL canvas rendered; UI hide, reset and fly controls responded.');
+  await browser.close();
+})().catch(e => { console.error(e); process.exit(1); });
