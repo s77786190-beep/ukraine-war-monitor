@@ -25,13 +25,13 @@ input[type=range],select{width:100%;accent-color:var(--orange)}select{background
 #joystick{display:none;position:absolute;left:24px;bottom:35px;width:112px;height:112px;border:1px solid #ff861a88;border-radius:50%;background:#09080666;pointer-events:auto;touch-action:none}
 #stick{position:absolute;width:42px;height:42px;left:34px;top:34px;border-radius:50%;background:#ff861a66;border:1px solid #ffb36e}
 #looktip{display:none;position:absolute;right:20px;bottom:42px;color:#eee9;font-size:10px}
-#toast{position:absolute;top:78px;left:50%;transform:translateX(-50%);font-size:10px;color:#ffc18a;background:#080807bb;padding:8px 12px;border:1px solid #ff861a55;opacity:0;transition:opacity .3s}
+#restore{position:fixed;z-index:10000;right:14px;top:14px;display:none;background:#080807ee;color:#ffb36e;border:1px solid #ff861a;padding:12px 14px;font:11px system-ui;letter-spacing:.08em;cursor:pointer}#toast{position:absolute;top:78px;left:50%;transform:translateX(-50%);font-size:10px;color:#ffc18a;background:#080807bb;padding:8px 12px;border:1px solid #ff861a55;opacity:0;transition:opacity .3s}
 .hidden{display:none!important}
 @media(max-width:700px){header{padding:13px}.brand{font-size:14px}#toolbar{top:75px;left:10px}#toolbar .btn{padding:9px;font-size:10px}#settings{top:75px;right:10px;width:210px;padding:12px;max-height:55vh}#hint{display:none}#bottom{bottom:12px;left:auto;right:10px;transform:none;flex-direction:column;align-items:stretch}#bottom .btn{font-size:9px;padding:8px}#joystick{display:block}#looktip{display:block}#science{bottom:160px;left:10px} }
 </style>
 </head>
 <body>
-<div id="scene"></div><div id="ui">
+<div id="scene"></div><button id="restore" type="button">ПОКАЗАТЬ ИНТЕРФЕЙС</button><div id="ui">
 <header><div><div class="brand">LOST <span>EARTH</span></div><div class="era">ПОЗДНИЙ ЭДИАКАРИЙ · ~575–541 МЛН ЛЕТ НАЗАД</div></div><div class="pill" id="depth">БЕРЕГ · 0 м</div></header>
 <div id="toolbar"><button class="btn active" id="walk">ПЕШЕХОД</button><button class="btn" id="fly">ПОЛЁТ</button><button class="btn" id="dive">ПОГРУЖЕНИЕ</button><button class="btn" id="guide">НАУЧНЫЙ СПРАВОЧНИК</button></div>
 <section id="settings" class="panel"><h3>Атмосфера и управление</h3>
@@ -84,8 +84,8 @@ let yaw=0,pitch=0,mode='walk',speed=1,uiVisible=true,started=false,lastY=3,under
 function setMode(m){mode=m;document.querySelectorAll('#toolbar .btn').forEach(b=>b.classList.remove('active'));document.getElementById(m==='walk'?'walk':m==='fly'?'fly':'dive').classList.add('active');toast(m==='fly'?'Режим свободного полёта':m==='dive'?'Режим плавания и погружения':'Пешая скорость')}
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.style.opacity=1;clearTimeout(el._t);el._t=setTimeout(()=>el.style.opacity=0,1800)}
 document.getElementById('walk').onclick=()=>setMode('walk');document.getElementById('fly').onclick=()=>setMode('fly');document.getElementById('dive').onclick=()=>setMode('dive');
-function toggleUI(){uiVisible=!uiVisible;document.querySelectorAll('#ui header,#toolbar,#settings,#bottom,#hint,#science').forEach(e=>e.classList.toggle('hidden',!uiVisible));document.getElementById('cross').classList.toggle('hidden',!uiVisible)}
-document.getElementById('hide').onclick=toggleUI;document.getElementById('reset').onclick=()=>{camera.position.set(0,3,18);setMode('walk')};
+function toggleUI(){uiVisible=!uiVisible;document.querySelectorAll('#ui header,#toolbar,#settings,#bottom,#hint,#science').forEach(e=>e.classList.toggle('hidden',!uiVisible));document.getElementById('cross').classList.toggle('hidden',!uiVisible);document.getElementById('restore').style.display=uiVisible?'none':'block'}
+document.getElementById('hide').onclick=toggleUI;document.getElementById('restore').onclick=toggleUI;document.getElementById('reset').onclick=()=>{camera.position.set(0,3,18);yaw=0;pitch=0;setMode('walk');toast('Возвращение на берег')};
 renderer.domElement.addEventListener('click',()=>{if(innerWidth>700&&!document.pointerLockElement)renderer.domElement.requestPointerLock?.()});
 document.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){yaw-=e.movementX*.002;pitch-=e.movementY*.002;pitch=Math.max(-1.45,Math.min(1.45,pitch))}});
 let touchLook=null;renderer.domElement.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(t.clientX>innerWidth*.42)touchLook={x:t.clientX,y:t.clientY}},{passive:true});renderer.domElement.addEventListener('touchmove',e=>{if(!touchLook)return;const t=e.changedTouches[0];yaw-=(t.clientX-touchLook.x)*.006;pitch-=(t.clientY-touchLook.y)*.006;pitch=Math.max(-1.4,Math.min(1.4,pitch));touchLook={x:t.clientX,y:t.clientY}},{passive:true});renderer.domElement.addEventListener('touchend',()=>touchLook=null);
