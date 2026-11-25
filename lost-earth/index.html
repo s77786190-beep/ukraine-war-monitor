@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#080808"><title>LOST EARTH — Эдиакарий</title>
+<style>
+:root{--bg:#080807;--panel:rgba(10,10,9,.88);--orange:#ff861a;--line:rgba(255,134,26,.45);--muted:#aaa49d}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050505;color:#f4eee7;font-family:Inter,system-ui,Segoe UI,sans-serif}canvas{display:block}
+#scene{position:fixed;inset:0}#ui{position:fixed;inset:0;pointer-events:none}
+header{position:absolute;top:0;left:0;right:0;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(#050505c9,transparent)}
+.brand{font-size:17px;letter-spacing:.24em;font-weight:800}.brand span{color:var(--orange)}.era{font-size:10px;color:#c1b8ae;letter-spacing:.16em;margin-top:5px}
+.pill,.panel,.btn{background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(12px);color:#f4eee7}
+.pill{padding:8px 12px;border-radius:2px;font-size:10px;letter-spacing:.12em}
+#toolbar{position:absolute;left:18px;top:100px;display:flex;flex-direction:column;gap:8px;pointer-events:auto}
+.btn{cursor:pointer;padding:10px 13px;border-radius:2px;font-size:11px;letter-spacing:.08em;text-align:left;transition:.2s}.btn:hover,.btn.active{background:#ff861a22;border-color:var(--orange);color:#ffb36e}
+#settings{position:absolute;right:18px;top:100px;width:min(300px,calc(100vw - 36px));max-height:calc(100vh - 125px);overflow:auto;padding:16px;pointer-events:auto}
+.panel h3{margin:0 0 14px;color:var(--orange);font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+.control{margin:13px 0}.control label{display:flex;justify-content:space-between;font-size:11px;color:#ded7cf;margin-bottom:7px}.control output{color:var(--orange);font-variant-numeric:tabular-nums}
+input[type=range],select{width:100%;accent-color:var(--orange)}select{background:#151311;color:#eee;border:1px solid #65401f;padding:8px}
+#bottom{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;pointer-events:auto}
+#hint{position:absolute;bottom:22px;left:20px;font-size:10px;line-height:1.7;color:#d1c8bd;letter-spacing:.05em;text-shadow:0 1px 5px #000}
+#cross{position:absolute;left:50%;top:50%;width:5px;height:5px;border:1px solid #ffb36e;border-radius:50%;opacity:.7;transform:translate(-50%,-50%)}
+#science{position:absolute;left:18px;bottom:95px;width:min(340px,calc(100vw - 36px));padding:14px;pointer-events:auto;display:none}
+#science p{font-size:11px;line-height:1.6;color:#d6cec4;margin:8px 0}
+#joystick{display:none;position:absolute;left:24px;bottom:35px;width:112px;height:112px;border:1px solid #ff861a88;border-radius:50%;background:#09080666;pointer-events:auto;touch-action:none}
+#stick{position:absolute;width:42px;height:42px;left:34px;top:34px;border-radius:50%;background:#ff861a66;border:1px solid #ffb36e}
+#looktip{display:none;position:absolute;right:20px;bottom:42px;color:#eee9;font-size:10px}
+#toast{position:absolute;top:78px;left:50%;transform:translateX(-50%);font-size:10px;color:#ffc18a;background:#080807bb;padding:8px 12px;border:1px solid #ff861a55;opacity:0;transition:opacity .3s}
+.hidden{display:none!important}
+@media(max-width:700px){header{padding:13px}.brand{font-size:14px}#toolbar{top:75px;left:10px}#toolbar .btn{padding:9px;font-size:10px}#settings{top:75px;right:10px;width:210px;padding:12px;max-height:55vh}#hint{display:none}#bottom{bottom:12px;left:auto;right:10px;transform:none;flex-direction:column;align-items:stretch}#bottom .btn{font-size:9px;padding:8px}#joystick{display:block}#looktip{display:block}#science{bottom:160px;left:10px} }
+</style>
+</head>
+<body>
+<div id="scene"></div><div id="ui">
+<header><div><div class="brand">LOST <span>EARTH</span></div><div class="era">ПОЗДНИЙ ЭДИАКАРИЙ · ~575–541 МЛН ЛЕТ НАЗАД</div></div><div class="pill" id="depth">БЕРЕГ · 0 м</div></header>
+<div id="toolbar"><button class="btn active" id="walk">ПЕШЕХОД</button><button class="btn" id="fly">ПОЛЁТ</button><button class="btn" id="dive">ПОГРУЖЕНИЕ</button><button class="btn" id="guide">НАУЧНЫЙ СПРАВОЧНИК</button></div>
+<section id="settings" class="panel"><h3>Атмосфера и управление</h3>
+<div class="control"><label>Время суток <output id="timeOut">14:00</output></label><input id="time" type="range" min="0" max="24" step=".25" value="14"></div>
+<div class="control"><label>Облачность <output id="cloudOut">35%</output></label><input id="cloud" type="range" min="0" max="100" value="35"></div>
+<div class="control"><label>Туман <output id="fogOut">18%</output></label><input id="fog" type="range" min="0" max="100" value="18"></div>
+<div class="control"><label>Скорость движения <output id="speedOut">1.0×</output></label><input id="speed" type="range" min=".4" max="5" step=".1" value="1"></div>
+<div class="control"><label>Звуковая среда</label><select id="sound"><option value="shore">Берег и ветер</option><option value="ocean">Океан</option><option value="quiet">Тишина</option></select></div>
+<div class="control"><label>Музыка</label><select id="music"><option value="none">Без музыки</option><option value="drone">Глубокий эмбиент</option><option value="pulse">Медленный космический тон</option></select></div>
+<div class="control"><label>Громкость <output id="volumeOut">45%</output></label><input id="volume" type="range" min="0" max="100" value="45"></div>
+<button class="btn" id="audio">ВКЛЮЧИТЬ ЗВУК</button>
+<p style="font-size:10px;color:#aaa;line-height:1.5">На ПК: WASD — движение, мышь — обзор, Shift — ускорение, Space — вверх в режиме полёта. На телефоне: джойстик и касание правой части экрана для обзора.</p>
+</section>
+<section id="science" class="panel"><h3>Полевой справочник</h3><div id="organismTitle" style="color:#ffb36e;font-size:13px">Эдиакарская биота</div><p id="organismText">Поздний эдиакарий — морские экосистемы до кембрийского периода. На суше не размещены животные и наземная растительность: убедительных свидетельств такой жизни для этой эпохи нет.</p><select id="organism"><option value="intro">Экосистема</option><option value="dickinsonia">Dickinsonia</option><option value="kimberella">Kimberella</option><option value="tribra">Tribrachidium</option><option value="cloudina">Cloudina</option><option value="mats">Микробные маты</option></select><button class="btn" id="closeGuide" style="margin-top:10px">ЗАКРЫТЬ</button></section>
+<div id="cross"></div><div id="toast"></div>
+<div id="joystick"><div id="stick"></div></div><div id="looktip">Проведи пальцем справа — обзор</div>
+<div id="hint">W A S D — движение · МЫШЬ — обзор · SHIFT — ускорение<br>F — полёт · G — погружение · H — скрыть интерфейс · ESC — освободить курсор</div>
+<div id="bottom"><button class="btn" id="hide">СКРЫТЬ ИНТЕРФЕЙС · H</button><button class="btn" id="reset">ВЕРНУТЬСЯ НА БЕРЕГ</button></div>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const host=document.getElementById('scene');
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9aabb0);scene.fog=new THREE.FogExp2(0x9aabb0,.0015);
+const camera=new THREE.PerspectiveCamera(72,innerWidth/innerHeight,.1,1800);camera.position.set(0,3,18);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;host.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xc8d9df,0x443c32,1.5));const sun=new THREE.DirectionalLight(0xffd9ae,2.2);sun.position.set(-100,150,70);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+const mat=(color,roughness=1)=>new THREE.MeshStandardMaterial({color,roughness});
+const groundMat=mat(0x756d60),rockMat=mat(0x55534d),wetMat=mat(0x4c5553),sandMat=mat(0x8b806b);
+const groundGeo=new THREE.PlaneGeometry(650,650,120,120);groundGeo.rotateX(-Math.PI/2);
+const pos=groundGeo.attributes.position;for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);let h=Math.sin(x*.025)*1.4+Math.cos(z*.03)*1.1+Math.sin((x+z)*.012)*2.3;h+=Math.sin(x*.13+z*.09)*.18;pos.setY(i,h)}groundGeo.computeVertexNormals();
+const ground=new THREE.Mesh(groundGeo,groundMat);ground.receiveShadow=true;scene.add(ground);
+const seaLevel=-.3;const waterMat=new THREE.MeshPhysicalMaterial({color:0x3b7882,roughness:.22,metalness:.05,transparent:true,opacity:.79,transmission:.18,thickness:1,side:THREE.DoubleSide});
+const water=new THREE.Mesh(new THREE.PlaneGeometry(900,900),waterMat);water.rotation.x=-Math.PI/2;water.position.y=seaLevel;scene.add(water);
+const seabed=new THREE.Mesh(new THREE.PlaneGeometry(550,550,80,80),mat(0x384d4a));seabed.rotation.x=-Math.PI/2;seabed.position.set(0,-5,0);scene.add(seabed);
+function rock(x,y,z,sx,sy,sz){const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1,1),rockMat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.rotation.set(Math.random(),Math.random(),Math.random());m.castShadow=true;m.receiveShadow=true;scene.add(m)}
+let seed=19;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+for(let i=0;i<330;i++){let x=(rand()-.5)*450,z=(rand()-.5)*450;if(Math.hypot(x,z)<16)continue;let y=Math.sin(x*.025)*1.4+Math.cos(z*.03)*1.1+Math.sin((x+z)*.012)*2.3;let s=.4+rand()*3.8;rock(x,y+s*.25,z,s,s*(.35+rand()*.55),s*(.5+rand()*.5))}
+for(let i=0;i<160;i++){let x=(rand()-.5)*350,z=(rand()-.5)*350;const g=new THREE.Group();const geo=new THREE.SphereGeometry(.7+rand()*1.5,8,6);const mesh=new THREE.Mesh(geo,mat(i%3===0?0x927d62:0x65736c));mesh.scale.set(1.8,.28,1.1);g.add(mesh);g.position.set(x,-4.6,z);g.rotation.y=rand()*6.28;scene.add(g)}
+// Organisms are stylised visual reconstructions, not life-sized taxonomic casts.
+function organism(type,x,z){const group=new THREE.Group();let body;
+ if(type==='d'){body=new THREE.Mesh(new THREE.SphereGeometry(1,18,12),new THREE.MeshStandardMaterial({color:0x9b8771,roughness:.9}));body.scale.set(1.35,.18,.55);group.add(body);for(let k=0;k<9;k++){const rib=new THREE.Mesh(new THREE.TorusGeometry(.25+k*.075,.018,5,28,Math.PI),mat(0x554e46));rib.position.y=.04;rib.position.z=(k-4)*.085;rib.rotation.y=Math.PI/2;group.add(rib)}}
+ if(type==='k'){body=new THREE.Mesh(new THREE.SphereGeometry(.8,16,10),mat(0xb19a76));body.scale.set(1.1,.25,.65);group.add(body);const foot=new THREE.Mesh(new THREE.CylinderGeometry(.5,.7,.08,16),mat(0x75634e));foot.position.y=-.15;group.add(foot)}
+ if(type==='t'){body=new THREE.Mesh(new THREE.SphereGeometry(.6,12,8),mat(0x8e9a82));body.scale.set(1,.18,1);group.add(body);for(let k=0;k<3;k++){const l=new THREE.Mesh(new THREE.ConeGeometry(.34,.6,8),mat(0x8e9a82));l.position.set(Math.cos(k*2.094)*.55,.1,Math.sin(k*2.094)*.55);l.rotation.z=-Math.cos(k*2.094)*.7;l.rotation.x=Math.sin(k*2.094)*.7;group.add(l)}}
+ if(type==='c'){for(let k=0;k<4;k++){const tube=new THREE.Mesh(new THREE.CylinderGeometry(.14,.19,1.1,10),new THREE.MeshStandardMaterial({color:0xc5b69a,roughness:.8}));tube.position.set((k-1.5)*.36,.45,0);group.add(tube);for(let j=0;j<5;j++){const ring=new THREE.Mesh(new THREE.TorusGeometry(.16+j*.004,.018,5,12),mat(0x6d6253));ring.rotation.x=Math.PI/2;ring.position.set((k-1.5)*.36,.12+j*.18,0);group.add(ring)}}}
+ group.position.set(x,-4.75,z);group.rotation.y=rand()*6.28;scene.add(group);return group}
+const creatures=[];for(let i=0;i<38;i++){const x=(rand()-.5)*210,z=(rand()-.5)*210;if(Math.hypot(x,z)<12)continue;const type=['d','k','t','c'][Math.floor(rand()*4)];creatures.push(organism(type,x,z))}
+const keys={};addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyH')toggleUI();if(e.code==='KeyF')setMode('fly');if(e.code==='KeyG')setMode('dive')});addEventListener('keyup',e=>keys[e.code]=false);
+let yaw=0,pitch=0,mode='walk',speed=1,uiVisible=true,started=false,lastY=3,under=false;
+function setMode(m){mode=m;document.querySelectorAll('#toolbar .btn').forEach(b=>b.classList.remove('active'));document.getElementById(m==='walk'?'walk':m==='fly'?'fly':'dive').classList.add('active');toast(m==='fly'?'Режим свободного полёта':m==='dive'?'Режим плавания и погружения':'Пешая скорость')}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.style.opacity=1;clearTimeout(el._t);el._t=setTimeout(()=>el.style.opacity=0,1800)}
+document.getElementById('walk').onclick=()=>setMode('walk');document.getElementById('fly').onclick=()=>setMode('fly');document.getElementById('dive').onclick=()=>setMode('dive');
+function toggleUI(){uiVisible=!uiVisible;document.querySelectorAll('#ui header,#toolbar,#settings,#bottom,#hint,#science').forEach(e=>e.classList.toggle('hidden',!uiVisible));document.getElementById('cross').classList.toggle('hidden',!uiVisible)}
+document.getElementById('hide').onclick=toggleUI;document.getElementById('reset').onclick=()=>{camera.position.set(0,3,18);setMode('walk')};
+renderer.domElement.addEventListener('click',()=>{if(innerWidth>700&&!document.pointerLockElement)renderer.domElement.requestPointerLock?.()});
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer.domElement){yaw-=e.movementX*.002;pitch-=e.movementY*.002;pitch=Math.max(-1.45,Math.min(1.45,pitch))}});
+let touchLook=null;renderer.domElement.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(t.clientX>innerWidth*.42)touchLook={x:t.clientX,y:t.clientY}},{passive:true});renderer.domElement.addEventListener('touchmove',e=>{if(!touchLook)return;const t=e.changedTouches[0];yaw-=(t.clientX-touchLook.x)*.006;pitch-=(t.clientY-touchLook.y)*.006;pitch=Math.max(-1.4,Math.min(1.4,pitch));touchLook={x:t.clientX,y:t.clientY}},{passive:true});renderer.domElement.addEventListener('touchend',()=>touchLook=null);
+let joy={x:0,y:0};const joyEl=document.getElementById('joystick'),stick=document.getElementById('stick');joyEl.addEventListener('pointerdown',e=>{joyEl.setPointerCapture(e.pointerId);moveJoy(e)});joyEl.addEventListener('pointermove',e=>{if(e.buttons)moveJoy(e)});joyEl.addEventListener('pointerup',()=>{joy={x:0,y:0};stick.style.transform='translate(0,0)'});function moveJoy(e){const r=joyEl.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),len=Math.max(1,Math.hypot(dx,dy)),k=Math.min(1,42/len);joy={x:dx/r.width*2*k,y:dy/r.height*2*k};stick.style.transform='translate('+dx*k+'px,'+dy*k+'px)'}
+const clock=new THREE.Clock();let worldTime=14,cloud=35,fog=18;
+function sky(){const t=worldTime/24*Math.PI*2-Math.PI/2;const h=Math.max(0,Math.sin(t));const col=new THREE.Color().setHSL(.54,.17,.12+h*.48);scene.background=col;scene.fog.color.copy(col);sun.intensity=.18+h*2.1;sun.position.set(Math.cos(t)*120,Math.max(12,Math.sin(t)*160),70);sun.color.setHSL(.09,.42,.65+h*.3);scene.fog.density=.00035+fog*.000025;waterMat.opacity=.66+cloud*.001}
+const audioCtx=()=>window.AudioContext||window.webkitAudioContext;let ctx=null,master=null,amb=null,osc=null;
+function audioStart(){if(started)return;const C=audioCtx();if(!C){toast('Звук не поддерживается браузером');return}ctx=new C;master=ctx.createGain();master.gain.value=Number(volume.value)/100*.22;master.connect(ctx.destination);amb=ctx.createGain();amb.gain.value=.2;amb.connect(master);const noise=ctx.createBufferSource(),buf=ctx.createBuffer(1,ctx.sampleRate*3,ctx.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;noise.buffer=buf;noise.loop=true;const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=500;noise.connect(filter);filter.connect(amb);noise.start();osc=ctx.createOscillator();osc.type='sine';osc.frequency.value=54;const og=ctx.createGain();og.gain.value=0;osc.connect(og);og.connect(master);osc.start();started=true;document.getElementById('audio').textContent='ЗВУК ВКЛЮЧЁН';}
+document.getElementById('audio').onclick=audioStart;
+document.getElementById('volume').oninput=e=>{volumeOut.textContent=e.target.value+'%';if(master)master.gain.setTargetAtTime(e.target.value/100*.22,ctx.currentTime,.1)};
+document.getElementById('music').onchange=e=>{if(!started)audioStart();if(osc){const v=e.target.value==='drone'?65:e.target.value==='pulse'?110:0;osc.frequency.setTargetAtTime(v||54,ctx.currentTime,.3);osc._gain=v?0.06:0}};
+document.getElementById('sound').onchange=e=>{if(amb)amb.gain.setTargetAtTime(e.target.value==='quiet'?0:e.target.value==='ocean'?.28:.16,ctx.currentTime,.3)};
+function footstep(){if(!ctx||!master)return;const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=under?95:camera.position.y<.2?150:85;g.gain.setValueAtTime(.045,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.12);o.connect(g);g.connect(master);o.start();o.stop(ctx.currentTime+.13)}
+let stepTimer=0;
+for(const id of ['time','cloud','fog','speed'])document.getElementById(id).addEventListener('input',e=>{const v=Number(e.target.value);if(id==='time'){worldTime=v;timeOut.textContent=String(Math.floor(v)).padStart(2,'0')+':'+String(Math.round(v%1*60)).padStart(2,'0')}if(id==='cloud'){cloud=v;cloudOut.textContent=v+'%'}if(id==='fog'){fog=v;fogOut.textContent=v+'%'}if(id==='speed'){speed=v;speedOut.textContent=v.toFixed(1)+'×'}});
+const organismInfo={intro:['Эдиакарская биота','Это реконструкция морского мира позднего эдиакария. Возраст конкретных организмов различается по местонахождениям; в реальной природе они не обязаны были сосуществовать в одном месте.'],dickinsonia:['Dickinsonia','Овальное сегментированное мягкотелое животное эдиакарской биоты. Биомаркеры из ископаемых образцов поддерживают животную природу. Предполагаемое питание связано с микробными матами; детали поведения неизвестны.'],kimberella:['Kimberella','Организм позднего эдиакария, часто рассматриваемый как возможный ранний моллюск или близкая к моллюскам форма. Следы царапания субстрата связывают с питанием микробными матами, но точное родство обсуждается.'],tribra:['Tribrachidium','Трёхлучевой симметричный организм эдиакарских морей. Его точное положение на древе жизни и способ питания остаются предметом дискуссии.'],cloudina:['Cloudina','Небольшой трубчатый организм с минерализованной оболочкой, известный из позднего эдиакария, особенно последних десятков миллионов лет периода. Не следует помещать его в более ранние эдиакарские сцены без оговорок.'],mats:['Микробные маты','Поверхности морского дна, покрытые сообществами микроорганизмов. Они были важным источником органического вещества и субстратом для многих организмов. Точные пищевые связи отдельных видов реконструируются не полностью.']};
+document.getElementById('guide').onclick=()=>{science.style.display='block'};document.getElementById('closeGuide').onclick=()=>science.style.display='none';document.getElementById('organism').onchange=e=>{const d=organismInfo[e.target.value];organismTitle.textContent=d[0];organismText.textContent=d[1]};
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);sky();const forward=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y;const side=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;const boost=keys.ShiftLeft||keys.ShiftRight?2.8:1;const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const right=new THREE.Vector3(dir.z,0,-dir.x);const velocity=mode==='fly'?10:mode==='dive'?4:2.5;camera.position.addScaledVector(dir,-forward*velocity*speed*boost*dt);camera.position.addScaledVector(right,side*velocity*speed*boost*dt);
+if(mode==='fly'){if(keys.Space)camera.position.y+=velocity*speed*dt;if(keys.ControlLeft||keys.KeyC)camera.position.y-=velocity*speed*dt}else if(mode==='dive'){if(keys.Space)camera.position.y+=3*dt;if(keys.ControlLeft||keys.KeyC)camera.position.y-=3*dt;camera.position.y=Math.min(camera.position.y,seaLevel-.15)}else{camera.position.y= Math.max(camera.position.y,seaLevel+1.7);camera.position.y+= (3-camera.position.y)*Math.min(1,dt*4)}
+const isUnder=camera.position.y<seaLevel-.1;if(isUnder!==under){under=isUnder;toast(under?'Под водой · звук приглушён':'На поверхности воды');}
+camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;
+const inWater=camera.position.y<seaLevel+.3;waterMat.color.set(inWater?0x27616c:0x3b7882);renderer.setClearColor(scene.background);
+const dist=Math.max(0,seaLevel-camera.position.y);depth.textContent=(under?'ОКЕАН · ':'БЕРЕГ · ')+Math.round(dist)+' м';
+if(Math.abs(forward)+Math.abs(side)>.05){stepTimer+=dt;if(stepTimer>(inWater?.65:.48)/Math.max(1,speed)){footstep();stepTimer=0}}
+for(let i=0;i<creatures.length;i++)creatures[i].position.y=-4.75+Math.sin(clock.elapsedTime*.5+i)*.025;
+renderer.render(scene,camera)}
+animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script></body></html>
