@@ -1,5 +1,7 @@
 name: LOST EARTH browser smoke test
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [feature/lost-earth]
   workflow_dispatch:
