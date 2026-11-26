@@ -7,7 +7,6 @@ on:
       - "personal-ai-agent/**"
       - ".github/workflows/personal-ai-agent-apk.yml"
 
-# Не тратить минуты CI на устаревшие сборки после каждого быстрого коммита.
 concurrency:
   group: personal-ai-agent-apk-${{ github.ref }}
   cancel-in-progress: true
@@ -42,27 +41,34 @@ jobs:
         run: npm run typecheck
       - name: Сгенерировать Android-проект
         run: npx expo prebuild --platform android --no-install
-      - name: Собрать APK
+      - name: Собрать автономный release APK
         timeout-minutes: 15
+        shell: bash
         run: |
+          set +e
           chmod +x android/gradlew
           cd android
-          # Повторяем сборку при временных ограничениях Maven Central (HTTP 429).
           for attempt in 1 2 3; do
-            if timeout 240 ./gradlew assembleDebug --no-daemon --console=plain; then
-              exit 0
-            fi
+            timeout 240 ./gradlew assembleRelease --no-daemon --console=plain
             status=$?
-            echo "Gradle attempt $attempt failed or timed out (exit $status)."
-            if [ "$attempt" -lt 3 ]; then
-              sleep 20
+            if [ "$status" -eq 0 ]; then
+              break
             fi
+            echo "Gradle release attempt $attempt failed (exit $status)."
+            if [ "$attempt" -eq 3 ]; then
+              exit "$status"
+            fi
+            sleep 20
           done
-          exit 1
+          cd ..
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          echo "APK size: $(stat -c%s "$APK") bytes"
+          unzip -l "$APK" | grep -E 'assets/index.android.bundle|assets/.+\.bundle'
       - name: Опубликовать APK
         uses: actions/upload-artifact@v4
         with:
-          name: personal-ai-agent-debug-apk
-          path: personal-ai-agent/android/app/build/outputs/apk/debug/app-debug.apk
+          name: personal-ai-agent-release-apk
+          path: personal-ai-agent/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
