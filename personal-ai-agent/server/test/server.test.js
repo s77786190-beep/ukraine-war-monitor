@@ -23,7 +23,7 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${port}`;
   server = spawn(process.execPath, ["src/index.js"], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-agent-token", OPENAI_API_KEY: "" },
+    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-agent-token", OPENAI_API_KEY: "", ELEVENLABS_API_KEY: "" },
     stdio: ["ignore", "pipe", "pipe"]
   });
   server.stdout.setEncoding("utf8");
