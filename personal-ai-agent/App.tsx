@@ -34,8 +34,8 @@ export default function App() {
     setBusy(true);
     try {
       const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, body: JSON.stringify({ message: text, language: "ru", memory, history: messages.slice(-20).map(({ role, text }) => ({ role, text })) }) });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "HTTP " + response.status);
       const answer = typeof data.reply === "string" ? data.reply : "Сервер вернул ответ в неизвестном формате.";
       await persist([...next, { id: String(Date.now() + 2), role: "assistant", text: answer, time: now() }]);
     } catch (e) {
