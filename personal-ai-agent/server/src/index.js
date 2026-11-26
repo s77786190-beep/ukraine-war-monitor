@@ -10,6 +10,8 @@ const apiToken = process.env.AGENT_API_TOKEN;
 const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 app.disable("x-powered-by");
+// Render terminates TLS in its reverse proxy; trust its forwarded client IP.
+app.set("trust proxy", 1);
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
 app.use(express.json({ limit: "256kb" }));
 
