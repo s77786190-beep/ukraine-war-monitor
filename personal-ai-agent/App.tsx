@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 
 const C = { bg: "#080808", panel: "#141414", panel2: "#1C1C1C", orange: "#FF861A", text: "#F4F4F4", muted: "#9A9A9A", line: "#303030", red: "#FF625C" };
@@ -25,7 +26,13 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [memory, setMemory] = useState("Пока нет сохранённых фактов.");
   useEffect(() => { (async () => {
-    const [m, e, mem, token] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken")]);
+    const [m, e, mem, legacyToken] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken")]);
+    let token = await SecureStore.getItemAsync("apiToken");
+    if (!token && legacyToken) {
+      await SecureStore.setItemAsync("apiToken", legacyToken);
+      await AsyncStorage.removeItem("apiToken");
+      token = legacyToken;
+    }
     const welcome: Message = { id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() };
     if (m) {
       try {
@@ -73,7 +80,7 @@ export default function App() {
       Alert.alert("Небезопасный адрес", "Разрешены только корректные HTTPS-адреса без логина и пароля."); return;
     }
     if (!apiToken.trim()) { Alert.alert("Нет токена", "Введите AGENT_API_TOKEN для доступа к серверу."); return; }
-    await Promise.all([AsyncStorage.setItem("endpoint", url), AsyncStorage.setItem("apiToken", apiToken.trim())]);
+    await Promise.all([AsyncStorage.setItem("endpoint", url), SecureStore.setItemAsync("apiToken", apiToken.trim()), AsyncStorage.removeItem("apiToken")]);
     setEndpoint(url);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
