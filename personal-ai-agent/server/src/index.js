@@ -115,7 +115,7 @@ app.post("/v1/voice", upload.single("file"), async (req, res) => {
       tools: [{ type: "web_search", search_context_size: "high" }],
       tool_choice: "auto",
       max_output_tokens: 4000,
-      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\\n" + memory : ""].join("\\n"),
+      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\\n" + memory : "" ].join("\n"),
       input: [...history, { role: "user", content: transcript }]
     }, { timeout: 55000 });
     res.json({ transcript, reply: response.output_text || "Модель не вернула текстовый ответ." });
@@ -126,7 +126,8 @@ app.post("/v1/voice", upload.single("file"), async (req, res) => {
 });
 \napp.use((error, _req, res, _next) => {
   if (res.headersSent) return;
-  if (error?.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Аудиофайл слишком большой (максимум 20 МБ)." });\n  if (error?.type === "entity.too.large") {
+  if (error?.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Аудиофайл слишком большой (максимум 20 МБ)." });
+  if (error?.type === "entity.too.large") {
     return res.status(413).json({ error: "Тело запроса слишком большое (максимум 256 КБ)." });
   }
   if (error instanceof SyntaxError && error?.status === 400) {
