@@ -6,21 +6,33 @@
 - Русскоязычный интерфейс: чёрный фон, оранжевые акценты.
 - Разделы: чат, задачи, специализированные агенты, память, настройки.
 - Локальное сохранение истории и заметки памяти.
-- Подключение к серверному API через адрес backend.
+- Подключение к серверному API через адрес backend и токен.
 - Честное отображение отсутствия backend: приложение не имитирует ответы модели.
 
-## Сборка локально
+## Сборка автономного APK локально
+Требуются Node.js 20+, Java 17 и Android SDK.
+
 ```bash
 cd personal-ai-agent
 npm install
-npx expo prebuild --platform android
+npm run typecheck
+npx expo prebuild --platform android --no-install
 cd android
-./gradlew assembleDebug
+./gradlew assembleRelease
 ```
 
-APK после сборки: `personal-ai-agent/android/app/build/outputs/apk/debug/app-debug.apk`.
+APK: `personal-ai-agent/android/app/build/outputs/apk/release/app-release.apk`.
+
+Для проверки APK:
+```bash
+unzip -t app-release.apk
+$ANDROID_HOME/build-tools/<version>/apksigner verify --verbose app-release.apk
+$ANDROID_HOME/build-tools/<version>/aapt dump badging app-release.apk
+```
+
+Не используйте `assembleDebug` как готовый APK для пользователя: debug-сборка может зависеть от Metro. CI собирает release APK, проверяет наличие встроенного JS bundle, целостность ZIP, подпись и идентификатор пакета.
 
 ## Что ещё требуется до полноценного продукта
-Серверный оркестратор и БД памяти; авторизация и безопасное хранение секретов; интеграции поиска и внешних сервисов; очередь фоновых задач; Realtime voice; Android AccessibilityService с явным включением пользователем; реестр инструментов; мультимодальные провайдеры; тесты, защита API и релизная подпись. Эти функции не объявляются реализованными до фактической разработки и проверки.
+Серверный оркестратор и БД долговременной памяти; авторизация и безопасное хранение секретов; интеграции поиска и внешних сервисов; очередь фоновых задач; Realtime voice; Android AccessibilityService с явным включением пользователем; реестр инструментов; мультимодальные провайдеры; тесты и управляемая релизная подпись. Эти функции не объявляются реализованными до фактической разработки и проверки.
 
-API-контракт чата: POST `/v1/chat`, JSON `{ "message": "...", "language": "ru" }`, ответ `{ "reply": "..." }`.
+Backend задаёт API-контракт: POST `/v1/chat`, JSON `{ "message": "...", "language": "ru" }`, ответ `{ "reply": "..." }`. Для работы чата сервер должен быть развёрнут, а его HTTPS-адрес и токен — настроены в приложении.
