@@ -41,6 +41,8 @@ jobs:
         run: npm install
       - name: Проверить совместимость пакетов Expo SDK
         run: npx expo install --check
+      - name: Исправить неполные метаданные Android-модулей Expo
+        run: node scripts/fix-expo-publications.cjs
       - name: Проверить TypeScript
         run: npm run typecheck
       - name: Установить зависимости backend
