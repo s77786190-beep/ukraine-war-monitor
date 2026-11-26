@@ -100,3 +100,29 @@ test("voice endpoint rejects requests without an audio file", async () => {
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /аудиофайл/);
 });
+
+test("voice endpoint rejects malformed history before requiring an OpenAI key", async () => {
+  const form = new FormData();
+  form.append("file", new Blob(["audio"], { type: "audio/mp4" }), "voice-message.m4a");
+  form.append("history", "{ invalid json");
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token" },
+    body: form
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /история/);
+});
+
+test("voice endpoint validates history array shape", async () => {
+  const form = new FormData();
+  form.append("file", new Blob(["audio"], { type: "audio/mp4" }), "voice-message.m4a");
+  form.append("history", JSON.stringify({ role: "user", text: "not an array" }));
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token" },
+    body: form
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /история/);
+});
