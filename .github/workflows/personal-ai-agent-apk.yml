@@ -46,7 +46,17 @@ jobs:
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug
+          # Повторяем сборку при временных ограничениях Maven Central (HTTP 429).
+          for attempt in 1 2 3; do
+            if ./gradlew assembleDebug --no-daemon; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Gradle build failed; retrying in 30 seconds (attempt $attempt/3)."
+              sleep 30
+            fi
+          done
+          exit 1
       - name: Опубликовать APK
         uses: actions/upload-artifact@v4
         with:
