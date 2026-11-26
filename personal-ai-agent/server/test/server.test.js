@@ -178,3 +178,52 @@ test("voice endpoint rejects malformed conversation history", async () => {
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /история/i);
 });
+
+
+test("speech endpoint requires bearer token", async () => {
+  const response = await fetch(baseUrl + "/v1/speech", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text: "Проверка" })
+  });
+  assert.equal(response.status, 401);
+});
+
+test("speech endpoint validates required text", async () => {
+  const response = await fetch(baseUrl + "/v1/speech", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer test-agent-token"
+    },
+    body: JSON.stringify({ text: " " })
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /text/i);
+});
+
+test("speech endpoint rejects voices outside the male-only allowlist", async () => {
+  const response = await fetch(baseUrl + "/v1/speech", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer test-agent-token"
+    },
+    body: JSON.stringify({ text: "Проверка", voice: "nova" })
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /мужские голоса/i);
+});
+
+test("speech endpoint reports missing ElevenLabs credentials", async () => {
+  const response = await fetch(baseUrl + "/v1/speech", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer test-agent-token"
+    },
+    body: JSON.stringify({ text: "Проверка", voice: "george" })
+  });
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /ELEVENLABS_API_KEY/);
+});
