@@ -167,11 +167,14 @@ export default function App() {
 
   const speak = async (text: string) => {
     if (!endpoint.trim() || !apiToken.trim()) { Alert.alert("Нет подключения", "Сначала настройте сервер."); return; }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 65000);
     try {
       const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/speech", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiToken },
-        body: JSON.stringify({ text: text.slice(0, 4096), voice })
+        body: JSON.stringify({ text: text.slice(0, 4096), voice }),
+        signal: controller.signal
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -184,7 +187,10 @@ export default function App() {
       player.replace(file.uri);
       player.play();
     } catch (error) {
-      Alert.alert("Ошибка озвучивания", error instanceof Error ? error.message : String(error));
+      const reason = error instanceof Error && error.name === "AbortError" ? "Синтез речи превысил 65 секунд." : error instanceof Error ? error.message : String(error);
+      Alert.alert("Ошибка озвучивания", reason);
+    } finally {
+      clearTimeout(timeout);
     }
   };
   const savePreferences = async () => {
