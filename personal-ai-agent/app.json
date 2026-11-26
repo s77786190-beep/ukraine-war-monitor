@@ -8,7 +8,13 @@
     "android": {
       "package": "com.strannik.personalagent",
       "versionCode": 1,
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
-    }
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }
