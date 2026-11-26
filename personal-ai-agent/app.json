@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Личный ИИ-агент",
+    "slug": "personal-ai-agent",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.strannik.personalagent",
+      "versionCode": 1,
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+    }
+  }
+}
