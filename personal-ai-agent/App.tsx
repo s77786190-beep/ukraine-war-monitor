@@ -30,9 +30,9 @@ export default function App() {
     let token = await SecureStore.getItemAsync("apiToken");
     if (!token && legacyToken) {
       await SecureStore.setItemAsync("apiToken", legacyToken);
-      await AsyncStorage.removeItem("apiToken");
       token = legacyToken;
     }
+    if (legacyToken) await AsyncStorage.removeItem("apiToken");
     const welcome: Message = { id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() };
     if (m) {
       try {
@@ -80,7 +80,12 @@ export default function App() {
       Alert.alert("Небезопасный адрес", "Разрешены только корректные HTTPS-адреса без логина и пароля."); return;
     }
     if (!apiToken.trim()) { Alert.alert("Нет токена", "Введите AGENT_API_TOKEN для доступа к серверу."); return; }
-    await Promise.all([AsyncStorage.setItem("endpoint", url), SecureStore.setItemAsync("apiToken", apiToken.trim()), AsyncStorage.removeItem("apiToken")]);
+    try {
+      await Promise.all([AsyncStorage.setItem("endpoint", url), SecureStore.setItemAsync("apiToken", apiToken.trim()), AsyncStorage.removeItem("apiToken")]);
+    } catch {
+      Alert.alert("Ошибка сохранения", "Не удалось безопасно сохранить токен на устройстве. Проверьте свободное место и повторите попытку.");
+      return;
+    }
     setEndpoint(url);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
