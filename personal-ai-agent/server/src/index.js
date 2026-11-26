@@ -67,7 +67,7 @@ app.use("/v1", (req, res, next) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "personal-ai-agent", aiConfigured: Boolean(client) });
+  res.json({ ok: true, service: "personal-ai-agent", aiConfigured: Boolean(client), speechConfigured: Boolean(elevenLabsApiKey) });
 });
 
 app.use("/v1", (req, res, next) => {
