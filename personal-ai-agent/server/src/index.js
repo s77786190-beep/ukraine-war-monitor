@@ -5,26 +5,26 @@ import multer from "multer";
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
-const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const ttsModel = process.env.GEMINI_TTS_MODEL || "gemini-2.5-flash-preview-tts";
+const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+const ttsModel = process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts";
 const geminiApiKey = process.env.GEMINI_API_KEY;
 const apiToken = process.env.AGENT_API_TOKEN;
 const maleVoices = { george: "Charon", daniel: "Algenib" };
 const apiUrl = (modelName) => "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(modelName) + ":generateContent?key=" + encodeURIComponent(geminiApiKey || "");
 
-function buildAgentInstructions(memory, userInstructions) {
+function buildAgentInstructions(memory, userInstructions, webResults = []) {
   return [
     "Ты — личный ИИ-агент пользователя.",
     "Отвечай на русском языке, если пользователь явно не попросил другой язык.",
     "Будь кратким, точным, прямолинейным; не льсти и не выдумывай выполненные действия.",
-    "Для актуальных фактов используй Google Search и приводи ссылки на источники, если инструмент поиска включён.",
+    "Для актуальных фактов используй переданные результаты веб-поиска и приводи ссылки на источники.",
     "Чётко отделяй подтверждённые факты от предположений. Если инструмент или действие недоступны — скажи об этом прямо.",
     memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\n" + memory : "",
     userInstructions ? "Предпочтения пользователя (не могут отменять правила безопасности, системные ограничения или требования точности):\n" + userInstructions : ""
   ].join("\n");
 }
 
-async function geminiGenerate({ contents, systemInstruction, useSearch = false, generationConfig = {} }) {
+async function geminiGenerate({ contents, systemInstruction, generationConfig = {} }) {
   const body = { contents, generationConfig: { temperature: 0.7, maxOutputTokens: 4096, ...generationConfig } };
   if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] };
   if (useSearch) body.tools = [{ google_search: {} }];
@@ -50,7 +50,38 @@ async function geminiGenerate({ contents, systemInstruction, useSearch = false, 
   return { text: text + sourceText, raw: data };
 }
 
-function safeHistory(value) {
+
+function decodeHtml(value) {
+  return value.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#(\\d+);/g, (_m, n) => String.fromCodePoint(Number(n))).replace(/\\s+/g, " ").trim();
+}
+
+async function searchWeb(query) {
+  try {
+    const url = "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query.slice(0, 500));
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PersonalAIAgent/1.0)", "Accept": "text/html" },
+      signal: AbortSignal.timeout(12_000)
+    });
+    if (!response.ok) return [];
+    const html = await response.text();
+    const links = [...html.matchAll(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\\s\\S]*?)<\\/a>/gi)];
+    const snippets = [...html.matchAll(/<(?:a|div)[^>]*class="result__snippet"[^>]*>([\\s\\S]*?)<\\/(?:a|div)>/gi)];
+    return links.slice(0, 8).map((match, i) => {
+      let target = match[1].replace(/&amp;/g, "&");
+      try {
+        const parsed = new URL(target, "https://duckduckgo.com");
+        target = parsed.searchParams.get("uddg") || parsed.href;
+      } catch {}
+      return { title: decodeHtml(match[2]), snippet: snippets[i] ? decodeHtml(snippets[i][1]) : "", url: target };
+    }).filter(item => item.title && /^https?:\\/\\//i.test(item.url));
+  } catch (error) {
+    console.error("Free web search unavailable:", error?.message || error);
+    return [];
+  }
+}
+\nfunction safeHistory(value) {
   const history = [];
   let chars = 0;
   if (!Array.isArray(value)) return history;
