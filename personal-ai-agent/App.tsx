@@ -75,6 +75,7 @@ export default function App() {
   };
   const toggleVoiceMessage = async () => {
     if (busy) return;
+    let keepRecording = false;
     try {
       if (!recordingState.isRecording) {
         if (!endpoint.trim() || !apiToken.trim()) { Alert.alert("Нет подключения", "Сначала настройте сервер в разделе «Настройки»."); return; }
@@ -83,6 +84,7 @@ export default function App() {
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         await recorder.prepareToRecordAsync();
         recorder.record();
+        keepRecording = true;
         return;
       }
       await recorder.stop();
@@ -118,7 +120,9 @@ export default function App() {
         : error instanceof Error ? error.message : String(error);
       Alert.alert("Ошибка голосового сообщения", reason);
     } finally {
-      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+      if (!keepRecording) {
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+      }
       setBusy(false);
     }
   };
