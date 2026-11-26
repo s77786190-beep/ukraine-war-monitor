@@ -18,6 +18,10 @@ on:
       - "personal-ai-agent/app.json"
       - ".github/workflows/personal-ai-agent-tests.yml"
 
+concurrency:
+  group: personal-ai-agent-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
