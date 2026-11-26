@@ -2,14 +2,10 @@ name: Build Personal AI Agent APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "personal-ai-agent/**"
-      - ".github/workflows/personal-ai-agent-apk.yml"
 
 concurrency:
   group: personal-ai-agent-apk-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -24,6 +20,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+          cache-dependency-path: personal-ai-agent/package-lock.json
       - name: Установить Java
         uses: actions/setup-java@v4
         with:
@@ -36,42 +34,40 @@ jobs:
       - name: Установить Android SDK tools
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - name: Установить зависимости
-        run: npm install
+        run: npm ci
       - name: Проверить TypeScript
         run: npm run typecheck
       - name: Сгенерировать Android-проект
         run: npx expo prebuild --platform android --no-install
-      - name: Собрать автономный release APK
-        timeout-minutes: 15
+      - name: Собрать и строго проверить автономный release APK
+        timeout-minutes: 18
         shell: bash
         run: |
-          set +e
+          set -Eeuo pipefail
           chmod +x android/gradlew
           cd android
+          built=0
           for attempt in 1 2 3; do
-            timeout 240 ./gradlew assembleRelease --no-daemon --console=plain
-            status=$?
-            if [ "$status" -eq 0 ]; then
+            if timeout 300 ./gradlew assembleRelease --no-daemon --console=plain; then
+              built=1
               break
             fi
-            echo "Gradle release attempt $attempt failed (exit $status)."
-            if [ "$attempt" -eq 3 ]; then
-              exit "$status"
-            fi
-            sleep 20
+            echo "Gradle release attempt ${attempt} failed."
+            if [ "${attempt}" -lt 3 ]; then sleep 20; fi
           done
+          test "${built}" -eq 1
           cd ..
           APK="android/app/build/outputs/apk/release/app-release.apk"
-          test -s "$APK"
-          echo "APK size: $(stat -c%s "$APK") bytes"
-          unzip -tq "$APK"
-          unzip -l "$APK" | grep -F 'assets/index.android.bundle'
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
-          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
-          test -x "$APKSIGNER"
-          test -x "$AAPT"
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
-          "$AAPT" dump badging "$APK" | grep -E "^package: name='com.strannik.personalagent'"
+          test -s "${APK}"
+          echo "APK size: $(stat -c%s "${APK}") bytes"
+          unzip -tq "${APK}"
+          unzip -l "${APK}" | grep -F 'assets/index.android.bundle'
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "${APKSIGNER}"
+          test -x "${AAPT}"
+          "${APKSIGNER}" verify --verbose --print-certs "${APK}"
+          "${AAPT}" dump badging "${APK}" | grep -F "package: name='com.strannik.personalagent'"
       - name: Опубликовать APK
         uses: actions/upload-artifact@v4
         with:
