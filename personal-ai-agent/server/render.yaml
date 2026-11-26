@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: personal-ai-agent-api
+    runtime: docker
+    dockerfilePath: ./personal-ai-agent/server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AGENT_API_TOKEN
+        generateValue: true
+      - key: OPENAI_MODEL
+        value: gpt-6.2-astra
+      - key: PORT
+        value: 8080
+      - key: CORS_ORIGIN
+        value: "*"
