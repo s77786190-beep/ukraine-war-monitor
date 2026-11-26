@@ -14,14 +14,13 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [apiToken, setApiToken] = useState("");
-  const [apiToken, setApiToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [memory, setMemory] = useState("Пока нет сохранённых фактов.");
   useEffect(() => { (async () => {
-    const [m, e, mem, token] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken"), AsyncStorage.getItem("apiToken")]);
+    const [m, e, mem, token] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken")]);
     if (m) setMessages(JSON.parse(m)); else setMessages([{ id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() }]);
-    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token); if (token) setApiToken(token);
+    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);
   })().catch(() => Alert.alert("Ошибка", "Не удалось загрузить локальные данные.")); }, []);
   const persist = async (next: Message[]) => { setMessages(next); await AsyncStorage.setItem("chat", JSON.stringify(next)); };
   const send = async () => {
@@ -29,12 +28,12 @@ export default function App() {
     const user: Message = { id: String(Date.now()), role: "user", text, time: now() };
     const next = [...messages, user]; await persist(next); setDraft("");
     if (!endpoint.trim()) {
-      await persist([...next, { id: String(Date.now() + 1), role: "assistant", text: "Сообщение сохранено на телефоне. Сервер агента пока не настроен, поэтому я не могу выполнить запрос или выдать ответ от ИИ. Сначала нужно развернуть backend и подключить его адрес в настройках.", time: now() }]);
+      await persist([...next, { id: String(Date.now() + 1), role: "assistant", text: "Сообщение сохранено на телефоне. Сервер агента не настроен, поэтому запрос не выполнен.", time: now() }]);
       return;
     }
     setBusy(true);
     try {
-      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, body: JSON.stringify({ message: text, language: "ru" }) });
+      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, body: JSON.stringify({ message: text, language: "ru", memory }) });
       if (!response.ok) throw new Error("HTTP " + response.status);
       const data = await response.json();
       const answer = typeof data.reply === "string" ? data.reply : "Сервер вернул ответ в неизвестном формате.";
@@ -43,11 +42,11 @@ export default function App() {
       await persist([...next, { id: String(Date.now() + 3), role: "assistant", text: "Не удалось связаться с сервером: " + String(e) + ". Сообщение сохранено локально.", time: now() }]);
     } finally { setBusy(false); }
   };
-  const saveEndpoint = async () => { await Promise.all([AsyncStorage.setItem("endpoint", endpoint.trim()), AsyncStorage.setItem("apiToken", apiToken.trim())]); Alert.alert("Сохранено", "Адрес сервера и токен сохранены на этом устройстве."); };
+  const saveEndpoint = async () => { const url = endpoint.trim().replace(/\/$/, ""); await Promise.all([AsyncStorage.setItem("endpoint", url), AsyncStorage.setItem("apiToken", apiToken.trim())]); setEndpoint(url); setConnected(false); if (!url) { Alert.alert("Адрес не указан", "Введите HTTPS-адрес backend."); return; } try { const r = await fetch(url + "/health"); if (!r.ok) throw new Error("HTTP " + r.status); const h = await r.json(); setConnected(true); Alert.alert("Сервер доступен", h.aiConfigured ? "Соединение установлено. ИИ-сервис настроен." : "Соединение установлено, но OPENAI_API_KEY на сервере не задан."); } catch (e) { Alert.alert("Нет соединения", "Настройки сохранены, но сервер недоступен: " + String(e)); } };
   const saveMemory = async () => { await AsyncStorage.setItem("memory", memory); Alert.alert("Сохранено", "Локальная заметка памяти сохранена."); };
   const clearChat = () => Alert.alert("Очистить историю?", "История чата будет удалена с этого устройства.", [{ text: "Отмена", style: "cancel" }, { text: "Удалить", style: "destructive", onPress: async () => { await AsyncStorage.removeItem("chat"); setMessages([]); } }]);
   const tabs: Tab[] = ["Чат", "Задачи", "Агенты", "Память", "Настройки"];
-  return <SafeAreaView style={s.safe}><StatusBar style="light" backgroundColor={C.bg} /><View style={s.header}><View><Text style={s.brand}>ЛИЧНЫЙ ИИ-АГЕНТ</Text><Text style={s.sub}>Локальный клиент · русский интерфейс</Text></View><View style={s.status}><View style={[s.dot, { backgroundColor: connected ? "#39C978" : C.orange }]} /><Text style={s.statusText}>{endpoint ? "АДРЕС ЗАДАН" : "НЕ ПОДКЛЮЧЁН"}</Text></View></View>
+  return <SafeAreaView style={s.safe}><StatusBar style="light" backgroundColor={C.bg} /><View style={s.header}><View><Text style={s.brand}>ЛИЧНЫЙ ИИ-АГЕНТ</Text><Text style={s.sub}>Локальный клиент · русский интерфейс</Text></View><View style={s.status}><View style={[s.dot, { backgroundColor: connected ? "#39C978" : C.orange }]} /><Text style={s.statusText}>{connected ? "СЕРВЕР ДОСТУПЕН" : endpoint ? "АДРЕС ЗАДАН" : "НЕ ПОДКЛЮЧЁН"}</Text></View></View>
   <View style={s.nav}>{tabs.map(t => <Pressable key={t} onPress={() => setTab(t)} style={[s.navItem, tab === t && s.navActive]}><Text style={[s.navText, tab === t && s.navTextActive]}>{t}</Text></Pressable>)}</View>
   {tab === "Чат" && <KeyboardAvoidingView style={s.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView style={s.fill} contentContainerStyle={s.chat}>{messages.map(m => <View key={m.id} style={[s.bubble, m.role === "user" ? s.userBubble : s.aiBubble]}><Text style={s.role}>{m.role === "user" ? "ВЫ" : "АГЕНТ"} · {m.time}</Text><Text style={s.message}>{m.text}</Text></View>)}</ScrollView><View style={s.composer}><TextInput value={draft} onChangeText={setDraft} placeholder="Введите сообщение..." placeholderTextColor={C.muted} multiline style={s.input} /><Pressable onPress={send} disabled={busy || !draft.trim()} style={[s.send, (busy || !draft.trim()) && s.disabled]}><Text style={s.sendText}>{busy ? "…" : "➤"}</Text></Pressable></View></KeyboardAvoidingView>}
   {tab === "Задачи" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Задачи</Text><Text style={s.note}>Здесь будут фоновые поручения, очередь выполнения, этапы, журнал и уведомления. Серверный исполнитель ещё не развёрнут — фиктивные статусы не показываются.</Text><Panel title="Состояние очереди" value="Нет подключённого исполнителя" /></ScrollView>}
