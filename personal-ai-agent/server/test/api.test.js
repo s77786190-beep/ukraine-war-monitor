@@ -91,3 +91,12 @@ test("chat returns JSON error for malformed JSON", async () => {
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /JSON/);
 });
+
+test("voice endpoint rejects requests without an audio file", async () => {
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token" }
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /аудиофайл/);
+});
