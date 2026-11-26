@@ -93,7 +93,7 @@ export default function App() {
       form.append("file", { uri, name: "voice-message.m4a", type: "audio/m4a" } as any);
       form.append("memory", memory);
       form.append("history", JSON.stringify(messages.slice(-20).map(({ role, text }) => ({ role, text }))));
-      const response = await fetch(endpoint.replace(/\\/$/, "") + "/v1/voice", { method: "POST", headers: { Authorization: "Bearer " + apiToken }, body: form });
+      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/voice", { method: "POST", headers: { Authorization: "Bearer " + apiToken }, body: form });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "HTTP " + response.status);
       const transcript = typeof data.transcript === "string" ? data.transcript : "";
