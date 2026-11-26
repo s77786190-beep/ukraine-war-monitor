@@ -98,7 +98,8 @@ app.post("/v1/chat", async (req, res) => {
         "Будь кратким, точным, прямолинейным; не льсти и не выдумывай выполненные действия.",
         "Для актуальных фактов используй веб-поиск и приводи ссылки на источники.",
         "Чётко отделяй подтверждённые факты от предположений. Если инструмент или действие недоступны — скажи об этом прямо.",
-        memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\n" + memory : ""
+        memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\n" + memory : "",
+        userInstructions ? "Пользовательские инструкции (соблюдай в рамках безопасности и системных правил):\n" + userInstructions : ""
       ].join("\n"),
       input: [...history, { role: "user", content: message }]
     }, { timeout: 55_000 });
@@ -143,13 +144,46 @@ app.post("/v1/voice", upload.single("file"), async (req, res) => {
       tools: [{ type: "web_search", search_context_size: "high" }],
       tool_choice: "auto",
       max_output_tokens: 4000,
-      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\\n" + memory : "" ].join("\n"),
+      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\\n" + memory : "", userInstructions ? "Пользовательские инструкции (соблюдай в рамках безопасности и системных правил):\\n" + userInstructions : "" ].join("\n"),
       input: [...history, { role: "user", content: transcript }]
     }, { timeout: 55000 });
     res.json({ transcript, reply: response.output_text || "Модель не вернула текстовый ответ." });
   } catch (error) {
     console.error("Voice request failed:", error?.message || error);
     res.status(502).json({ error: "Не удалось обработать голосовое сообщение." });
+  }
+});
+
+
+app.post("/v1/speech", async (req, res) => {
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  const voice = typeof req.body?.voice === "string" ? req.body.voice : "george";
+  if (!text) return res.status(400).json({ error: "Поле text обязательно." });
+  if (text.length > 4096) return res.status(413).json({ error: "Текст для озвучивания превышает 4096 символов." });
+  if (!Object.hasOwn(maleVoices, voice)) return res.status(400).json({ error: "Доступны только выбранные мужские голоса." });
+  if (!elevenLabsApiKey) return res.status(503).json({ error: "На сервере не настроен ELEVENLABS_API_KEY." });
+  try {
+    const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + maleVoices[voice] + "?output_format=mp3_44100_128", {
+      method: "POST",
+      headers: { "xi-api-key": elevenLabsApiKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: { stability: 0.92, similarity_boost: 0.85, style: 0, use_speaker_boost: true, speed: 0.9 }
+      }),
+      signal: AbortSignal.timeout(55_000)
+    });
+    if (!response.ok) {
+      console.error("ElevenLabs speech failed:", response.status);
+      return res.status(response.status === 429 ? 429 : 502).json({ error: "Сервис озвучивания не смог обработать текст." });
+    }
+    const audio = Buffer.from(await response.arrayBuffer());
+    if (!audio.length || audio.length > 12 * 1024 * 1024) return res.status(502).json({ error: "Сервис вернул некорректный аудиофайл." });
+    res.set({ "Content-Type": "audio/mpeg", "Content-Length": String(audio.length), "Cache-Control": "no-store" });
+    return res.send(audio);
+  } catch (error) {
+    console.error("Speech generation failed:", error?.message || error);
+    return res.status(502).json({ error: "Не удалось создать голосовой ответ." });
   }
 });
 
