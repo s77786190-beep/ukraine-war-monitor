@@ -47,7 +47,6 @@ app.use("/v1", (req, res, next) => {
   if (!apiToken) return res.status(503).json({ error: "Сервер не настроен: отсутствует AGENT_API_TOKEN." });
   const supplied = req.get("authorization") || "";
   if (supplied !== `Bearer ${apiToken}`) return res.status(401).json({ error: "Требуется авторизация." });
-  if (!client) return res.status(503).json({ error: "Сервер не настроен: отсутствует OPENAI_API_KEY." });
   next();
 });
 
@@ -69,6 +68,7 @@ app.post("/v1/chat", async (req, res) => {
   }
   if (!message) return res.status(400).json({ error: "Поле message обязательно." });
   if (message.length > 20000) return res.status(413).json({ error: "Сообщение слишком длинное (максимум 20 000 символов)." });
+  if (!client) return res.status(503).json({ error: "Сервер не настроен: отсутствует OPENAI_API_KEY." });
 
   try {
     const response = await client.responses.create({
