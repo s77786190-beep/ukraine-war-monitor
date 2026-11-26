@@ -90,7 +90,7 @@ export default function App() {
       if (!uri) throw new Error("Аудиофайл не создан.");
       setBusy(true);
       const form = new FormData();
-      form.append("file", { uri, name: "voice-message.m4a", type: "audio/m4a" } as any);
+      form.append("file", { uri, name: "voice-message.m4a", type: "audio/mp4" } as any);
       form.append("memory", memory);
       form.append("history", JSON.stringify(messages.slice(-20).map(({ role, text }) => ({ role, text }))));
       const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/voice", { method: "POST", headers: { Authorization: "Bearer " + apiToken }, body: form });
