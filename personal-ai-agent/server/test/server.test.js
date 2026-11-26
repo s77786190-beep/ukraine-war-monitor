@@ -123,3 +123,32 @@ test("malformed JSON receives a controlled client error", async () => {
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /JSON/i);
 });
+
+
+test("voice endpoint requires bearer token", async () => {
+  const response = await fetch(baseUrl + "/v1/voice", { method: "POST" });
+  assert.equal(response.status, 401);
+});
+
+test("voice endpoint rejects a missing audio file", async () => {
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { authorization: "Bearer test-agent-token" },
+    body: new FormData()
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /аудиофайл/i);
+});
+
+test("voice endpoint reports missing model credentials without calling external APIs", async () => {
+  const form = new FormData();
+  form.append("file", new Blob(["fake audio"], { type: "audio/wav" }), "voice.wav");
+  form.append("history", "[]");
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { authorization: "Bearer test-agent-token" },
+    body: form
+  });
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /OPENAI_API_KEY/);
+});
