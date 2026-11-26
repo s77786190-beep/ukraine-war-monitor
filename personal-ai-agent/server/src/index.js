@@ -98,18 +98,31 @@ app.post("/v1/chat", async (req, res) => {
 
 app.post("/v1/voice", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Не найден аудиофайл." });
+  const memory = typeof req.body?.memory === "string" ? req.body.memory.slice(0, 12000) : "";
+  let history = [];
+  try {
+    const parsed = JSON.parse(req.body?.history || "[]");
+    if (!Array.isArray(parsed)) throw new Error("history must be an array");
+    let historyChars = 0;
+    for (const item of parsed.slice(-20)) {
+      if (!item || (item.role !== "user" && item.role !== "assistant") || typeof item.text !== "string") continue;
+      const remaining = 40_000 - historyChars;
+      if (remaining <= 0) break;
+      const content = item.text.slice(0, Math.min(4_000, remaining));
+      if (!content) continue;
+      history.push({ role: item.role, content });
+      historyChars += content.length;
+    }
+  } catch { return res.status(400).json({ error: "Некорректная история сообщений." }); }
   if (!client) return res.status(503).json({ error: "Сервер не настроен: отсутствует OPENAI_API_KEY." });
   try {
-    const audio = new File([req.file.buffer], req.file.originalname || "voice-message.m4a", { type: req.file.mimetype || "audio/mp4" });
-    const transcription = await client.audio.transcriptions.create({ model: "gpt-4o-mini-transcribe", file: audio });
+    const audio = new File([req.file.buffer], "voice-message.m4a", { type: req.file.mimetype || "audio/mp4" });
+    const transcription = await client.audio.transcriptions.create(
+      { model: "gpt-4o-mini-transcribe", file: audio },
+      { timeout: 55_000 }
+    );
     const transcript = typeof transcription.text === "string" ? transcription.text.trim() : "";
     if (!transcript) return res.status(422).json({ error: "Не удалось распознать речь." });
-    const memory = typeof req.body?.memory === "string" ? req.body.memory.slice(0, 12000) : "";
-    let history = [];
-    try {
-      const parsed = JSON.parse(req.body?.history || "[]");
-      if (Array.isArray(parsed)) history = parsed.slice(-20).filter(x => x && (x.role === "user" || x.role === "assistant") && typeof x.text === "string").map(x => ({ role: x.role, content: x.text.slice(0, 4000) }));
-    } catch { return res.status(400).json({ error: "Некорректная история сообщений." }); }
     const response = await client.responses.create({
       model,
       tools: [{ type: "web_search", search_context_size: "high" }],
