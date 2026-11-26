@@ -81,3 +81,13 @@ test("chat rejects empty messages before requiring model configuration", async (
   });
   assert.equal(response.status, 400);
 });
+
+test("chat returns JSON error for malformed JSON", async () => {
+  const response = await fetch(baseUrl + "/v1/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer test-token" },
+    body: "{ invalid json"
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /JSON/);
+});
