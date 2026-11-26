@@ -126,3 +126,15 @@ test("voice endpoint validates history array shape", async () => {
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /история/);
 });
+
+test("voice endpoint rejects non-audio uploads", async () => {
+  const form = new FormData();
+  form.append("file", new Blob(["not audio"], { type: "application/octet-stream" }), "payload.bin");
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-token" },
+    body: form
+  });
+  assert.equal(response.status, 415);
+  assert.match((await response.json()).error, /аудиофайлы/);
+});
