@@ -2,6 +2,12 @@ name: Build Personal AI Agent APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/personal-ai-agent
+    paths:
+      - '.github/workflows/personal-ai-agent-apk.yml'
+      - 'personal-ai-agent/**'
 
 concurrency:
   group: personal-ai-agent-apk-${{ github.ref }}
