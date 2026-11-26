@@ -52,7 +52,8 @@ export default function App() {
         setMessages([welcome]);
       }
     } else setMessages([welcome]);
-    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);\n    if (instructions) setUserInstructions(instructions);\n    if (savedVoice === "daniel" || savedVoice === "george") setVoice(savedVoice);
+    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);
+    if (instructions) setUserInstructions(instructions);\n    if (savedVoice === "daniel" || savedVoice === "george") setVoice(savedVoice);
   })().catch(() => Alert.alert("Ошибка", "Не удалось загрузить локальные данные.")); }, []);
   const persist = async (next: Message[]) => { setMessages(next); await AsyncStorage.setItem("chat", JSON.stringify(next)); };
   const send = async () => {
@@ -97,7 +98,8 @@ export default function App() {
       setBusy(true);
       const form = new FormData();
       form.append("file", { uri, name: "voice-message.m4a", type: "audio/mp4" } as any);
-      form.append("memory", memory);\n      form.append("userInstructions", userInstructions);
+      form.append("memory", memory);
+      form.append("userInstructions", userInstructions);
       form.append("history", JSON.stringify(messages.slice(-20).map(({ role, text }) => ({ role, text }))));
       const controller = new AbortController();
       const uploadTimeout = setTimeout(() => controller.abort(), 120000);
