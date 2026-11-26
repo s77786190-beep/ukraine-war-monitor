@@ -53,7 +53,8 @@ export default function App() {
       }
     } else setMessages([welcome]);
     if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);
-    if (instructions) setUserInstructions(instructions);\n    if (savedVoice === "daniel" || savedVoice === "george") setVoice(savedVoice);
+    if (instructions) setUserInstructions(instructions);
+    if (savedVoice === "daniel" || savedVoice === "george") setVoice(savedVoice);
   })().catch(() => Alert.alert("Ошибка", "Не удалось загрузить локальные данные.")); }, []);
   const persist = async (next: Message[]) => { setMessages(next); await AsyncStorage.setItem("chat", JSON.stringify(next)); };
   const send = async () => {
