@@ -15,7 +15,18 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
 app.use(express.json({ limit: "256kb" }));
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 1 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    if (!file.mimetype || !file.mimetype.startsWith("audio/")) {
+      const error = new Error("Разрешены только аудиофайлы.");
+      error.status = 415;
+      return callback(error);
+    }
+    callback(null, true);
+  }
+});
 
 // Простое ограничение частоты запросов защищает публичный API от случайных циклов
 // и примитивного перебора токена. Для нескольких экземпляров сервера нужен общий store.
@@ -140,6 +151,7 @@ app.post("/v1/voice", upload.single("file"), async (req, res) => {
 
 app.use((error, _req, res, _next) => {
   if (res.headersSent) return;
+  if (error?.status === 415) return res.status(415).json({ error: "Разрешены только аудиофайлы." });
   if (error?.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Аудиофайл слишком большой (максимум 20 МБ)." });
   if (error?.type === "entity.too.large") {
     return res.status(413).json({ error: "Тело запроса слишком большое (максимум 256 КБ)." });
