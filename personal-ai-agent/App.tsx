@@ -13,13 +13,14 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [endpoint, setEndpoint] = useState("");
+  const [apiToken, setApiToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [memory, setMemory] = useState("Пока нет сохранённых фактов.");
   useEffect(() => { (async () => {
-    const [m, e, mem] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory")]);
+    const [m, e, mem, token] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken")]);
     if (m) setMessages(JSON.parse(m)); else setMessages([{ id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() }]);
-    if (e) setEndpoint(e); if (mem) setMemory(mem);
+    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);
   })().catch(() => Alert.alert("Ошибка", "Не удалось загрузить локальные данные.")); }, []);
   const persist = async (next: Message[]) => { setMessages(next); await AsyncStorage.setItem("chat", JSON.stringify(next)); };
   const send = async () => {
@@ -32,7 +33,7 @@ export default function App() {
     }
     setBusy(true);
     try {
-      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, language: "ru" }) });
+      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, body: JSON.stringify({ message: text, language: "ru" }) });
       if (!response.ok) throw new Error("HTTP " + response.status);
       const data = await response.json();
       const answer = typeof data.reply === "string" ? data.reply : "Сервер вернул ответ в неизвестном формате.";
@@ -41,7 +42,7 @@ export default function App() {
       await persist([...next, { id: String(Date.now() + 3), role: "assistant", text: "Не удалось связаться с сервером: " + String(e) + ". Сообщение сохранено локально.", time: now() }]);
     } finally { setBusy(false); }
   };
-  const saveEndpoint = async () => { await AsyncStorage.setItem("endpoint", endpoint.trim()); Alert.alert("Сохранено", "Адрес backend сохранён на этом устройстве."); };
+  const saveEndpoint = async () => { await Promise.all([AsyncStorage.setItem("endpoint", endpoint.trim()), AsyncStorage.setItem("apiToken", apiToken.trim())]); Alert.alert("Сохранено", "Адрес сервера и токен сохранены на этом устройстве."); };
   const saveMemory = async () => { await AsyncStorage.setItem("memory", memory); Alert.alert("Сохранено", "Локальная заметка памяти сохранена."); };
   const clearChat = () => Alert.alert("Очистить историю?", "История чата будет удалена с этого устройства.", [{ text: "Отмена", style: "cancel" }, { text: "Удалить", style: "destructive", onPress: async () => { await AsyncStorage.removeItem("chat"); setMessages([]); } }]);
   const tabs: Tab[] = ["Чат", "Задачи", "Агенты", "Память", "Настройки"];
@@ -51,7 +52,7 @@ export default function App() {
   {tab === "Задачи" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Задачи</Text><Text style={s.note}>Здесь будут фоновые поручения, очередь выполнения, этапы, журнал и уведомления. Серверный исполнитель ещё не развёрнут — фиктивные статусы не показываются.</Text><Panel title="Состояние очереди" value="Нет подключённого исполнителя" /></ScrollView>}
   {tab === "Агенты" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Специализированные агенты</Text><Text style={s.note}>Архитектура предусматривает подключаемые роли и инструменты. Каталог станет активным после запуска backend и реестра модулей.</Text>{["Поиск и проверка источников","Разработка приложений","Работа с файлами","Мультимедиа","Управление Android"].map(x => <Panel key={x} title={x} value="Не подключён" />)}</ScrollView>}
   {tab === "Память" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Память</Text><Text style={s.note}>Пока это локальная заметка на устройстве, не полноценная долговременная память агента.</Text><TextInput value={memory} onChangeText={setMemory} multiline style={s.textarea} placeholderTextColor={C.muted} /><Action label="Сохранить заметку" onPress={saveMemory} /></ScrollView>}
-  {tab === "Настройки" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Подключение</Text><Text style={s.note}>Укажите HTTPS-адрес серверного API. Ключи моделей в APK не хранятся.</Text><Text style={s.label}>Адрес backend</Text><TextInput value={endpoint} onChangeText={setEndpoint} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ваш-сервер.example" placeholderTextColor={C.muted} style={s.field} /><Action label="Сохранить адрес" onPress={saveEndpoint} /><View style={s.separator} /><Text style={s.h1}>Данные</Text><Action label="Очистить историю чата" onPress={clearChat} danger /><Text style={s.footer}>Версия клиента 0.1.0 · Все подписи и системные сообщения приложения — на русском языке.</Text></ScrollView>}
+  {tab === "Настройки" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Подключение</Text><Text style={s.note}>Укажите HTTPS-адрес серверного API. Ключи моделей в APK не хранятся.</Text><Text style={s.label}>Адрес backend</Text><TextInput value={endpoint} onChangeText={setEndpoint} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ваш-сервер.example" placeholderTextColor={C.muted} style={s.field} /><Text style={s.label}>Токен доступа к серверу</Text><TextInput value={apiToken} onChangeText={setApiToken} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="AGENT_API_TOKEN" placeholderTextColor={C.muted} style={s.field} /><Action label="Сохранить подключение" onPress={saveEndpoint} /><View style={s.separator} /><Text style={s.h1}>Данные</Text><Action label="Очистить историю чата" onPress={clearChat} danger /><Text style={s.footer}>Версия клиента 0.1.0 · Все подписи и системные сообщения приложения — на русском языке.</Text></ScrollView>}
   </SafeAreaView>;
 }
 function Panel({title, value}: {title:string; value:string}) { return <View style={s.panel}><Text style={s.panelTitle}>{title}</Text><Text style={s.panelValue}>{value}</Text></View>; }
