@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import OpenAI from "openai";
+import multer from "multer";
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -14,6 +15,7 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
 app.use(express.json({ limit: "256kb" }));
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: 1 } });
 
 // Простое ограничение частоты запросов защищает публичный API от случайных циклов
 // и примитивного перебора токена. Для нескольких экземпляров сервера нужен общий store.
@@ -93,9 +95,38 @@ app.post("/v1/chat", async (req, res) => {
   }
 });
 
-app.use((error, _req, res, _next) => {
+
+app.post("/v1/voice", upload.single("file"), async (req, res) => {
+  if (!client) return res.status(503).json({ error: "Сервер не настроен: отсутствует OPENAI_API_KEY." });
+  if (!req.file) return res.status(400).json({ error: "Не найден аудиофайл." });
+  try {
+    const audio = new File([req.file.buffer], req.file.originalname || "voice-message.m4a", { type: req.file.mimetype || "audio/mp4" });
+    const transcription = await client.audio.transcriptions.create({ model: "gpt-4o-mini-transcribe", file: audio });
+    const transcript = typeof transcription.text === "string" ? transcription.text.trim() : "";
+    if (!transcript) return res.status(422).json({ error: "Не удалось распознать речь." });
+    const memory = typeof req.body?.memory === "string" ? req.body.memory.slice(0, 12000) : "";
+    let history = [];
+    try {
+      const parsed = JSON.parse(req.body?.history || "[]");
+      if (Array.isArray(parsed)) history = parsed.slice(-20).filter(x => x && (x.role === "user" || x.role === "assistant") && typeof x.text === "string").map(x => ({ role: x.role, content: x.text.slice(0, 4000) }));
+    } catch { return res.status(400).json({ error: "Некорректная история сообщений." }); }
+    const response = await client.responses.create({
+      model,
+      tools: [{ type: "web_search", search_context_size: "high" }],
+      tool_choice: "auto",
+      max_output_tokens: 4000,
+      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\\n" + memory : ""].join("\\n"),
+      input: [...history, { role: "user", content: transcript }]
+    }, { timeout: 55000 });
+    res.json({ transcript, reply: response.output_text || "Модель не вернула текстовый ответ." });
+  } catch (error) {
+    console.error("Voice request failed:", error?.message || error);
+    res.status(502).json({ error: "Не удалось обработать голосовое сообщение." });
+  }
+});
+\napp.use((error, _req, res, _next) => {
   if (res.headersSent) return;
-  if (error?.type === "entity.too.large") {
+  if (error?.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Аудиофайл слишком большой (максимум 20 МБ)." });\n  if (error?.type === "entity.too.large") {
     return res.status(413).json({ error: "Тело запроса слишком большое (максимум 256 КБ)." });
   }
   if (error instanceof SyntaxError && error?.status === 400) {
