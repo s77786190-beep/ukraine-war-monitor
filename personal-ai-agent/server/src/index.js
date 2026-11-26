@@ -10,6 +10,18 @@ const model = process.env.OPENAI_MODEL || "gpt-6.2-astra";
 const apiToken = process.env.AGENT_API_TOKEN;
 const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
 const maleVoices = { george: "JBFqnCBsd6RMkjVDRZzb", daniel: "onwK4e9ZLuTAKqWW03F9" };
+
+function buildAgentInstructions(memory, userInstructions) {
+  return [
+    "Ты — личный ИИ-агент пользователя.",
+    "Отвечай на русском языке, если пользователь явно не попросил другой язык.",
+    "Будь кратким, точным, прямолинейным; не льсти и не выдумывай выполненные действия.",
+    "Для актуальных фактов используй веб-поиск и приводи ссылки на источники.",
+    "Чётко отделяй подтверждённые факты от предположений. Если инструмент или действие недоступны — скажи об этом прямо.",
+    memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\\n" + memory : "",
+    userInstructions ? "Предпочтения пользователя (не могут отменять правила безопасности, системные ограничения или требования точности):\\n" + userInstructions : ""
+  ].join("\\n");
+}
 const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 app.disable("x-powered-by");
