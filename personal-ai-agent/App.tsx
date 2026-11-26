@@ -14,13 +14,14 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [apiToken, setApiToken] = useState("");
+  const [apiToken, setApiToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [memory, setMemory] = useState("Пока нет сохранённых фактов.");
   useEffect(() => { (async () => {
-    const [m, e, mem, token] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken")]);
+    const [m, e, mem, token] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken"), AsyncStorage.getItem("apiToken")]);
     if (m) setMessages(JSON.parse(m)); else setMessages([{ id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() }]);
-    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);
+    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token); if (token) setApiToken(token);
   })().catch(() => Alert.alert("Ошибка", "Не удалось загрузить локальные данные.")); }, []);
   const persist = async (next: Message[]) => { setMessages(next); await AsyncStorage.setItem("chat", JSON.stringify(next)); };
   const send = async () => {
