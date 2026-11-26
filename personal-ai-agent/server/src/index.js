@@ -144,7 +144,7 @@ app.post("/v1/voice", upload.single("file"), async (req, res) => {
       tools: [{ type: "web_search", search_context_size: "high" }],
       tool_choice: "auto",
       max_output_tokens: 4000,
-      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\\n" + memory : "", userInstructions ? "Пользовательские инструкции (соблюдай в рамках безопасности и системных правил):\\n" + userInstructions : "" ].join("\n"),
+      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\n" + memory : "", userInstructions ? "Пользовательские инструкции (соблюдай в рамках безопасности и системных правил):\n" + userInstructions : "" ].join("\n"),
       input: [...history, { role: "user", content: transcript }]
     }, { timeout: 55000 });
     res.json({ transcript, reply: response.output_text || "Модель не вернула текстовый ответ." });
