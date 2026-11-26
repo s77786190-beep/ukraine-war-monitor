@@ -32,15 +32,17 @@ export default function App() {
       return;
     }
     setBusy(true);
+    const controller = new AbortController();
+    const requestTimeout = setTimeout(() => controller.abort(), 60000);
     try {
-      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, body: JSON.stringify({ message: text, language: "ru", memory, history: messages.slice(-20).map(({ role, text }) => ({ role, text })) }) });
+      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, signal: controller.signal, body: JSON.stringify({ message: text, language: "ru", memory, history: messages.slice(-20).map(({ role, text }) => ({ role, text })) }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "HTTP " + response.status);
       const answer = typeof data.reply === "string" ? data.reply : "Сервер вернул ответ в неизвестном формате.";
       await persist([...next, { id: String(Date.now() + 2), role: "assistant", text: answer, time: now() }]);
     } catch (e) {
       await persist([...next, { id: String(Date.now() + 3), role: "assistant", text: "Не удалось связаться с сервером: " + String(e) + ". Сообщение сохранено локально.", time: now() }]);
-    } finally { setBusy(false); }
+    } finally { clearTimeout(requestTimeout); setBusy(false); }
   };
   const saveEndpoint = async () => { const url = endpoint.trim().replace(/\/$/, ""); await Promise.all([AsyncStorage.setItem("endpoint", url), AsyncStorage.setItem("apiToken", apiToken.trim())]); setEndpoint(url); setConnected(false); if (!url) { Alert.alert("Адрес не указан", "Введите HTTPS-адрес backend."); return; } try { const r = await fetch(url + "/health"); if (!r.ok) throw new Error("HTTP " + r.status); const h = await r.json(); setConnected(true); Alert.alert("Сервер доступен", h.aiConfigured ? "Соединение установлено. ИИ-сервис настроен." : "Соединение установлено, но OPENAI_API_KEY на сервере не задан."); } catch (e) { Alert.alert("Нет соединения", "Настройки сохранены, но сервер недоступен: " + String(e)); } };
   const saveMemory = async () => { await AsyncStorage.setItem("memory", memory); Alert.alert("Сохранено", "Локальная заметка памяти сохранена."); };
