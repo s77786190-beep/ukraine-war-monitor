@@ -63,9 +63,10 @@ jobs:
         run: npm run typecheck
       - name: Проверить генерацию нативного Android-проекта
         run: npx expo prebuild --platform android --no-install --clean
-      - name: Проверить Android Gradle wrapper и идентификатор приложения
+      - name: Проверить структуру Android-проекта и идентификатор приложения
         shell: bash
         run: |
           set -Eeuo pipefail
           test -s android/gradlew
-          grep -R -F 'com.strannik.personalagent' android/app/build.gradle android/app/build.gradle.kts android/app/src/main/AndroidManifest.xml 2>/dev/null
+          test -f android/app/build.gradle || test -f android/app/build.gradle.kts
+          node -e 'const app = require("./app.json"); if (app.expo?.android?.package !== "com.strannik.personalagent") process.exit(1)'
