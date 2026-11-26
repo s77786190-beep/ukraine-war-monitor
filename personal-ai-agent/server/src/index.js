@@ -8,6 +8,8 @@ const app = express();
 const port = Number(process.env.PORT || 8080);
 const model = process.env.OPENAI_MODEL || "gpt-6.2-astra";
 const apiToken = process.env.AGENT_API_TOKEN;
+const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
+const maleVoices = { george: "JBFqnCBsd6RMkjVDRZzb", daniel: "onwK4e9ZLuTAKqWW03F9" };
 const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 app.disable("x-powered-by");
@@ -66,6 +68,7 @@ app.use("/v1", (req, res, next) => {
 app.post("/v1/chat", async (req, res) => {
   const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
   const memory = typeof req.body?.memory === "string" ? req.body.memory.trim().slice(0, 12000) : "";
+  const userInstructions = typeof req.body?.userInstructions === "string" ? req.body.userInstructions.trim().slice(0, 8000) : "";
   const history = [];
   if (Array.isArray(req.body?.history)) {
     let historyChars = 0;
@@ -110,6 +113,7 @@ app.post("/v1/chat", async (req, res) => {
 app.post("/v1/voice", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Не найден аудиофайл." });
   const memory = typeof req.body?.memory === "string" ? req.body.memory.slice(0, 12000) : "";
+  const userInstructions = typeof req.body?.userInstructions === "string" ? req.body.userInstructions.trim().slice(0, 8000) : "";
   let history = [];
   try {
     const parsed = JSON.parse(req.body?.history || "[]");
