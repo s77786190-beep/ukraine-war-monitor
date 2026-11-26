@@ -1,0 +1,59 @@
+name: Personal AI Agent — tests
+
+on:
+  push:
+    branches:
+      - feature/personal-ai-agent
+    paths:
+      - "personal-ai-agent/server/**"
+      - "personal-ai-agent/App.tsx"
+      - "personal-ai-agent/package.json"
+      - "personal-ai-agent/app.json"
+      - ".github/workflows/personal-ai-agent-tests.yml"
+  pull_request:
+    paths:
+      - "personal-ai-agent/server/**"
+      - "personal-ai-agent/App.tsx"
+      - "personal-ai-agent/package.json"
+      - "personal-ai-agent/app.json"
+      - ".github/workflows/personal-ai-agent-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: personal-ai-agent/server
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v4
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Установить зависимости backend
+        run: npm install
+      - name: Запустить интеграционные тесты API
+        run: npm test
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: personal-ai-agent
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v4
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Установить зависимости клиента
+        run: npm install
+      - name: Проверить совместимость Expo SDK
+        run: npx expo install --check
+      - name: Проверить TypeScript
+        run: npm run typecheck
