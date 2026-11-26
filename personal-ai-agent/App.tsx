@@ -34,12 +34,20 @@ export default function App() {
   const recordingState = useAudioRecorderState(recorder);
   useEffect(() => { (async () => {
     const [m, e, mem, legacyToken, instructions, savedVoice] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken"), AsyncStorage.getItem("userInstructions"), AsyncStorage.getItem("voice")]);
-    let token = await SecureStore.getItemAsync("apiToken");
-    if (!token && legacyToken) {
-      await SecureStore.setItemAsync("apiToken", legacyToken);
-      token = legacyToken;
+    let token: string | null = null;
+    try {
+      token = await SecureStore.getItemAsync("apiToken");
+      if (!token && legacyToken) {
+        await SecureStore.setItemAsync("apiToken", legacyToken);
+        token = legacyToken;
+      }
+      if (legacyToken) await AsyncStorage.removeItem("apiToken");
+    } catch {
+      // A keystore failure must not prevent chat history and settings from loading.
+      // Discard the legacy plaintext token rather than continuing to store it insecurely.
+      await AsyncStorage.removeItem("apiToken").catch(() => {});
+      Alert.alert("Требуется повторный ввод токена", "Android не смог открыть защищённое хранилище. История и настройки загружены, но токен удалён из старого небезопасного хранилища. Введите его заново в настройках.");
     }
-    if (legacyToken) await AsyncStorage.removeItem("apiToken");
     const welcome: Message = { id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() };
     if (m) {
       try {
