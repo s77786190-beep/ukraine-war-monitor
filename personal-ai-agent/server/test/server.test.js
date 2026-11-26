@@ -23,7 +23,7 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${port}`;
   server = spawn(process.execPath, ["src/index.js"], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-agent-token", GEMINI_API_KEY: "", GEMINI_API_KEY: "" },
+    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-agent-token", GEMINI_API_KEY: "" },
     stdio: ["ignore", "pipe", "pipe"]
   });
   server.stdout.setEncoding("utf8");
@@ -60,7 +60,9 @@ test("health endpoint reports service without exposing secrets", async () => {
     ok: true,
     service: "personal-ai-agent",
     aiConfigured: false,
-    speechConfigured: false
+    speechConfigured: false,
+    provider: "Google Gemini",
+    freeTier: true
   });
 });
 
@@ -216,7 +218,7 @@ test("speech endpoint rejects voices outside the male-only allowlist", async () 
   assert.match((await response.json()).error, /мужские голоса/i);
 });
 
-test("speech endpoint reports missing ElevenLabs credentials", async () => {
+test("speech endpoint reports missing Gemini credentials", async () => {
   const response = await fetch(baseUrl + "/v1/speech", {
     method: "POST",
     headers: {
