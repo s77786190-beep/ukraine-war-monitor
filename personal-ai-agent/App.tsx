@@ -105,6 +105,7 @@ export default function App() {
       const controller = new AbortController();
       const uploadTimeout = setTimeout(() => controller.abort(), 120000);
       let response: Response;
+      let data: any;
       try {
         response = await fetch(endpoint.replace(/\/$/, "") + "/v1/voice", {
           method: "POST",
@@ -112,10 +113,10 @@ export default function App() {
           body: form,
           signal: controller.signal
         });
+        data = await response.json().catch(() => ({}));
       } finally {
         clearTimeout(uploadTimeout);
       }
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "HTTP " + response.status);
       const transcript = typeof data.transcript === "string" ? data.transcript : "";
       const answer = typeof data.reply === "string" ? data.reply : "Сервер не вернул ответ.";
