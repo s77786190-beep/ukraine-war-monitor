@@ -97,8 +97,8 @@ app.post("/v1/chat", async (req, res) => {
 
 
 app.post("/v1/voice", upload.single("file"), async (req, res) => {
-  if (!client) return res.status(503).json({ error: "Сервер не настроен: отсутствует OPENAI_API_KEY." });
   if (!req.file) return res.status(400).json({ error: "Не найден аудиофайл." });
+  if (!client) return res.status(503).json({ error: "Сервер не настроен: отсутствует OPENAI_API_KEY." });
   try {
     const audio = new File([req.file.buffer], req.file.originalname || "voice-message.m4a", { type: req.file.mimetype || "audio/mp4" });
     const transcription = await client.audio.transcriptions.create({ model: "gpt-4o-mini-transcribe", file: audio });
