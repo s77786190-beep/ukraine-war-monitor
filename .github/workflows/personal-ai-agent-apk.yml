@@ -35,6 +35,10 @@ jobs:
         run: npm install
       - name: Проверить TypeScript
         run: npm run typecheck
+      - name: Установить зависимости backend
+        run: npm install --prefix server
+      - name: Проверить backend API
+        run: npm test --prefix server
       - name: Сгенерировать Android-проект
         run: npx expo prebuild --platform android --no-install
       - name: Собрать и строго проверить автономный release APK
