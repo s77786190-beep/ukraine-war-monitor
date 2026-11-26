@@ -59,7 +59,8 @@ test("health endpoint reports service without exposing secrets", async () => {
   assert.deepEqual(await response.json(), {
     ok: true,
     service: "personal-ai-agent",
-    aiConfigured: false
+    aiConfigured: false,
+    speechConfigured: false
   });
 });
 
