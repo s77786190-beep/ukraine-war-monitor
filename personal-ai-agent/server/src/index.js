@@ -83,7 +83,7 @@ app.post("/v1/chat", async (req, res) => {
         memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\n" + memory : ""
       ].join("\n"),
       input: [...history, { role: "user", content: message }]
-    });
+    }, { timeout: 55_000 });
     res.json({ reply: response.output_text || "Модель не вернула текстовый ответ.", responseId: response.id });
   } catch (error) {
     console.error("OpenAI request failed:", error?.message || error);
