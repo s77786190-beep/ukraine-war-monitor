@@ -7,6 +7,12 @@ const C = { bg: "#080808", panel: "#141414", panel2: "#1C1C1C", orange: "#FF861A
 type Tab = "Чат" | "Задачи" | "Агенты" | "Память" | "Настройки";
 type Message = { id: string; role: "user" | "assistant"; text: string; time: string };
 const now = () => new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+const isMessage = (value: unknown): value is Message => {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === "string" && (item.role === "user" || item.role === "assistant") &&
+    typeof item.text === "string" && typeof item.time === "string";
+};
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("Чат");
@@ -19,7 +25,18 @@ export default function App() {
   const [memory, setMemory] = useState("Пока нет сохранённых фактов.");
   useEffect(() => { (async () => {
     const [m, e, mem, token] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken")]);
-    if (m) setMessages(JSON.parse(m)); else setMessages([{ id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() }]);
+    const welcome: Message = { id: "welcome", role: "assistant", text: "Я — ваш личный ИИ-агент. Интерфейс готов к подключению серверного ядра. Сейчас автономный ИИ-ответчик ещё не подключён: я не буду изображать, будто запрос уже обработан.", time: now() };
+    if (m) {
+      try {
+        const parsed: unknown = JSON.parse(m);
+        if (!Array.isArray(parsed)) throw new Error("Некорректный формат истории");
+        const valid = parsed.filter(isMessage);
+        setMessages(valid.length ? valid : [welcome]);
+      } catch {
+        await AsyncStorage.removeItem("chat");
+        setMessages([welcome]);
+      }
+    } else setMessages([welcome]);
     if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);
   })().catch(() => Alert.alert("Ошибка", "Не удалось загрузить локальные данные.")); }, []);
   const persist = async (next: Message[]) => { setMessages(next); await AsyncStorage.setItem("chat", JSON.stringify(next)); };
