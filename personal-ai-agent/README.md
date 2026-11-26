@@ -36,3 +36,6 @@ $ANDROID_HOME/build-tools/<version>/aapt dump badging app-release.apk
 Серверный оркестратор и БД долговременной памяти; авторизация и безопасное хранение секретов; интеграции поиска и внешних сервисов; очередь фоновых задач; Realtime voice; Android AccessibilityService с явным включением пользователем; реестр инструментов; мультимодальные провайдеры; тесты и управляемая релизная подпись. Эти функции не объявляются реализованными до фактической разработки и проверки.
 
 Backend задаёт API-контракт: POST `/v1/chat`, JSON `{ "message": "...", "language": "ru" }`, ответ `{ "reply": "..." }`. Для работы чата сервер должен быть развёрнут, а его HTTPS-адрес и токен — настроены в приложении.
+
+
+Android UI uses system safe-area insets plus 24 dp of additional spacing at the top and bottom.
