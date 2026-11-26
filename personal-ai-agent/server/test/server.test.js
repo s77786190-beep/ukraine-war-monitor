@@ -152,3 +152,29 @@ test("voice endpoint reports missing model credentials without calling external 
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /OPENAI_API_KEY/);
 });
+
+
+test("voice endpoint rejects non-audio uploads", async () => {
+  const form = new FormData();
+  form.append("file", new Blob(["not audio"], { type: "text/plain" }), "notes.txt");
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { authorization: "Bearer test-agent-token" },
+    body: form
+  });
+  assert.equal(response.status, 415);
+  assert.match((await response.json()).error, /аудиофайлы/i);
+});
+
+test("voice endpoint rejects malformed conversation history", async () => {
+  const form = new FormData();
+  form.append("file", new Blob(["fake audio"], { type: "audio/wav" }), "voice.wav");
+  form.append("history", "{broken");
+  const response = await fetch(baseUrl + "/v1/voice", {
+    method: "POST",
+    headers: { authorization: "Bearer test-agent-token" },
+    body: form
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /история/i);
+});
