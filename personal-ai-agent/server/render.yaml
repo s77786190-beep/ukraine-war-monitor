@@ -12,9 +12,9 @@ services:
       - key: AGENT_API_TOKEN
         generateValue: true
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.8-flash
       - key: GEMINI_TTS_MODEL
-        value: gemini-2.5-flash-preview-tts
+        value: gemini-3.8-flash-tts
       - key: PORT
         value: 8080
       - key: CORS_ORIGIN
