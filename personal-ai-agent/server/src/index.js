@@ -28,6 +28,7 @@ app.use("/v1", (req, res, next) => {
 app.post("/v1/chat", async (req, res) => {
   const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
   const memory = typeof req.body?.memory === "string" ? req.body.memory.trim().slice(0, 12000) : "";
+  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-20).filter(item => item && (item.role === "user" || item.role === "assistant") && typeof item.text === "string").map(item => ({ role: item.role, content: item.text.slice(0, 8000) })) : [];
   if (!message) return res.status(400).json({ error: "Поле message обязательно." });
   if (message.length > 20000) return res.status(413).json({ error: "Сообщение слишком длинное (максимум 20 000 символов)." });
 
@@ -44,7 +45,7 @@ app.post("/v1/chat", async (req, res) => {
         "Чётко отделяй подтверждённые факты от предположений. Если инструмент или действие недоступны — скажи об этом прямо.",
         memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\\n" + memory : ""
       ].join("\n"),
-      input: message
+      input: [...history, { role: "user", content: message }]
     });
     res.json({ reply: response.output_text || "Модель не вернула текстовый ответ.", responseId: response.id });
   } catch (error) {
