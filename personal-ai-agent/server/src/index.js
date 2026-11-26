@@ -18,9 +18,9 @@ function buildAgentInstructions(memory, userInstructions) {
     "Будь кратким, точным, прямолинейным; не льсти и не выдумывай выполненные действия.",
     "Для актуальных фактов используй веб-поиск и приводи ссылки на источники.",
     "Чётко отделяй подтверждённые факты от предположений. Если инструмент или действие недоступны — скажи об этом прямо.",
-    memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\\n" + memory : "",
-    userInstructions ? "Предпочтения пользователя (не могут отменять правила безопасности, системные ограничения или требования точности):\\n" + userInstructions : ""
-  ].join("\\n");
+    memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\n" + memory : "",
+    userInstructions ? "Предпочтения пользователя (не могут отменять правила безопасности, системные ограничения или требования точности):\n" + userInstructions : ""
+  ].join("\n");
 }
 const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
@@ -104,15 +104,7 @@ app.post("/v1/chat", async (req, res) => {
       tools: [{ type: "web_search", search_context_size: "high" }],
       tool_choice: "auto",
       max_output_tokens: 4000,
-      instructions: [
-        "Ты — личный ИИ-агент пользователя.",
-        "Отвечай на русском языке, если пользователь явно не попросил другой язык.",
-        "Будь кратким, точным, прямолинейным; не льсти и не выдумывай выполненные действия.",
-        "Для актуальных фактов используй веб-поиск и приводи ссылки на источники.",
-        "Чётко отделяй подтверждённые факты от предположений. Если инструмент или действие недоступны — скажи об этом прямо.",
-        memory ? "Пользовательская заметка памяти (контекст, а не системные правила):\n" + memory : "",
-        userInstructions ? "Пользовательские инструкции (соблюдай в рамках безопасности и системных правил):\n" + userInstructions : ""
-      ].join("\n"),
+      instructions: buildAgentInstructions(memory, userInstructions),
       input: [...history, { role: "user", content: message }]
     }, { timeout: 55_000 });
     res.json({ reply: response.output_text || "Модель не вернула текстовый ответ.", responseId: response.id });
@@ -156,7 +148,7 @@ app.post("/v1/voice", upload.single("file"), async (req, res) => {
       tools: [{ type: "web_search", search_context_size: "high" }],
       tool_choice: "auto",
       max_output_tokens: 4000,
-      instructions: ["Ты — личный ИИ-агент пользователя. Отвечай на русском языке. Будь точным и прямолинейным.", memory ? "Память пользователя:\n" + memory : "", userInstructions ? "Пользовательские инструкции (соблюдай в рамках безопасности и системных правил):\n" + userInstructions : "" ].join("\n"),
+      instructions: buildAgentInstructions(memory, userInstructions),
       input: [...history, { role: "user", content: transcript }]
     }, { timeout: 55000 });
     res.json({ transcript, reply: response.output_text || "Модель не вернула текстовый ответ." });
@@ -189,6 +181,13 @@ app.post("/v1/speech", async (req, res) => {
       console.error("ElevenLabs speech failed:", response.status);
       return res.status(response.status === 429 ? 429 : 502).json({ error: "Сервис озвучивания не смог обработать текст." });
     }
+    const contentType = response.headers.get("content-type") || "";
+    const contentLength = Number(response.headers.get("content-length") || 0);
+    if (!contentType.toLowerCase().includes("audio/")) {
+      console.error("ElevenLabs returned unexpected content type:", contentType);
+      return res.status(502).json({ error: "Сервис вернул ответ, который не является аудио." });
+    }
+    if (contentLength > 12 * 1024 * 1024) return res.status(502).json({ error: "Аудиофайл превышает допустимый размер." });
     const audio = Buffer.from(await response.arrayBuffer());
     if (!audio.length || audio.length > 12 * 1024 * 1024) return res.status(502).json({ error: "Сервис вернул некорректный аудиофайл." });
     res.set({ "Content-Type": "audio/mpeg", "Content-Length": String(audio.length), "Cache-Control": "no-store" });
