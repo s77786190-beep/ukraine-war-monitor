@@ -10,7 +10,7 @@ let server;
 before(async () => {
   server = spawn(process.execPath, ["src/index.js"], {
     cwd: new URL("..", import.meta.url),
-    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-token", OPENAI_API_KEY: "" },
+    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-token", GEMINI_API_KEY: "" },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let lastError;
@@ -70,7 +70,7 @@ test("chat reports missing model API key after successful authentication", async
     body: JSON.stringify({ message: "test" })
   });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /OPENAI_API_KEY/);
+  assert.match((await response.json()).error, /GEMINI_API_KEY/);
 });
 
 test("chat rejects empty messages before requiring model configuration", async () => {
