@@ -91,6 +91,18 @@ app.post("/v1/chat", async (req, res) => {
   }
 });
 
+app.use((error, _req, res, _next) => {
+  if (res.headersSent) return;
+  if (error?.type === "entity.too.large") {
+    return res.status(413).json({ error: "Тело запроса слишком большое (максимум 256 КБ)." });
+  }
+  if (error instanceof SyntaxError && error?.status === 400) {
+    return res.status(400).json({ error: "Некорректный JSON в запросе." });
+  }
+  console.error("Unhandled request error:", error?.message || error);
+  return res.status(500).json({ error: "Внутренняя ошибка сервера." });
+});
+
 app.listen(port, "0.0.0.0", () => {
   console.log(`Personal AI Agent API listening on :${port}`);
 });
