@@ -3,7 +3,7 @@ services:
     name: personal-ai-agent-api
     runtime: docker
     dockerfilePath: ./personal-ai-agent/server/Dockerfile
-    dockerContext: .
+    dockerContext: ./personal-ai-agent/server
     plan: free
     healthCheckPath: /health
     envVars:
