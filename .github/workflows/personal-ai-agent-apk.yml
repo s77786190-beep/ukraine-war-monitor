@@ -33,8 +33,8 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: ''
-      - name: Установить Android platform-tools
-        run: sdkmanager "platform-tools" "platforms;android-36"
+      - name: Установить Android SDK tools
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - name: Установить зависимости
         run: npm install
       - name: Проверить TypeScript
@@ -64,7 +64,14 @@ jobs:
           APK="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           echo "APK size: $(stat -c%s "$APK") bytes"
-          unzip -l "$APK" | grep -E 'assets/index.android.bundle|assets/.+\.bundle'
+          unzip -tq "$APK"
+          unzip -l "$APK" | grep -F 'assets/index.android.bundle'
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          "$AAPT" dump badging "$APK" | grep -E "^package: name='com.strannik.personalagent'"
       - name: Опубликовать APK
         uses: actions/upload-artifact@v4
         with:
