@@ -20,8 +20,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-          cache-dependency-path: personal-ai-agent/package-lock.json
       - name: Установить Java
         uses: actions/setup-java@v4
         with:
@@ -34,7 +32,7 @@ jobs:
       - name: Установить Android SDK tools
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - name: Установить зависимости
-        run: npm ci
+        run: npm install
       - name: Проверить TypeScript
         run: npm run typecheck
       - name: Сгенерировать Android-проект
