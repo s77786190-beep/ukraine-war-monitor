@@ -124,7 +124,8 @@ app.post("/v1/voice", upload.single("file"), async (req, res) => {
     res.status(502).json({ error: "Не удалось обработать голосовое сообщение." });
   }
 });
-\napp.use((error, _req, res, _next) => {
+
+app.use((error, _req, res, _next) => {
   if (res.headersSent) return;
   if (error?.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: "Аудиофайл слишком большой (максимум 20 МБ)." });
   if (error?.type === "entity.too.large") {
