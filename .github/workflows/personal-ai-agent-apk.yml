@@ -7,6 +7,11 @@ on:
       - "personal-ai-agent/**"
       - ".github/workflows/personal-ai-agent-apk.yml"
 
+# Не тратить минуты CI на устаревшие сборки после каждого быстрого коммита.
+concurrency:
+  group: personal-ai-agent-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
