@@ -14,7 +14,14 @@
       ]
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Разрешите доступ к микрофону для отправки голосовых сообщений.",
+          "recordAudioAndroid": true
+        }
+      ]
     ]
   }
-}
+}\n
