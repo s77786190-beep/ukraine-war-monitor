@@ -168,7 +168,7 @@ export default function App() {
   const speak = async (text: string) => {
     if (!endpoint.trim() || !apiToken.trim()) { Alert.alert("Нет подключения", "Сначала настройте сервер."); return; }
     try {
-      const response = await fetch(endpoint.replace(/\\/$/, "") + "/v1/speech", {
+      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/speech", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiToken },
         body: JSON.stringify({ text: text.slice(0, 4096), voice })
