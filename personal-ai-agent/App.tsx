@@ -157,7 +157,7 @@ export default function App() {
       if (!r.ok) throw new Error("HTTP " + r.status);
       const h = await r.json();
       setConnected(true);
-      Alert.alert("Сервер доступен", [h.aiConfigured ? "ИИ-сервис настроен." : "Не задан OPENAI_API_KEY.", h.speechConfigured ? "Синтез речи настроен." : "Не задан ELEVENLABS_API_KEY — озвучивание недоступно."].join("\\n"));
+      Alert.alert("Сервер доступен", [h.aiConfigured ? "ИИ-сервис настроен." : "Не задан OPENAI_API_KEY.", h.speechConfigured ? "Синтез речи настроен." : "Не задан ELEVENLABS_API_KEY — озвучивание недоступно."].join("\n"));
     } catch (e) {
       setConnected(false);
       const reason = e instanceof Error && e.name === "AbortError" ? "Проверка соединения превысила 10 секунд." : String(e);
