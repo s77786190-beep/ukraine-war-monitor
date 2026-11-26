@@ -23,7 +23,7 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${port}`;
   server = spawn(process.execPath, ["src/index.js"], {
     cwd: process.cwd(),
-    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-agent-token", OPENAI_API_KEY: "", ELEVENLABS_API_KEY: "" },
+    env: { ...process.env, PORT: String(port), AGENT_API_TOKEN: "test-agent-token", GEMINI_API_KEY: "", GEMINI_API_KEY: "" },
     stdio: ["ignore", "pipe", "pipe"]
   });
   server.stdout.setEncoding("utf8");
@@ -109,7 +109,7 @@ test("chat endpoint reports missing model credentials as service unavailable", a
     body: JSON.stringify({ message: "test" })
   });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /OPENAI_API_KEY/);
+  assert.match((await response.json()).error, /GEMINI_API_KEY/);
 });
 
 test("malformed JSON receives a controlled client error", async () => {
@@ -151,7 +151,7 @@ test("voice endpoint reports missing model credentials without calling external 
     body: form
   });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /OPENAI_API_KEY/);
+  assert.match((await response.json()).error, /GEMINI_API_KEY/);
 });
 
 
@@ -226,5 +226,5 @@ test("speech endpoint reports missing ElevenLabs credentials", async () => {
     body: JSON.stringify({ text: "Проверка", voice: "george" })
   });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /ELEVENLABS_API_KEY/);
+  assert.match((await response.json()).error, /GEMINI_API_KEY/);
 });
