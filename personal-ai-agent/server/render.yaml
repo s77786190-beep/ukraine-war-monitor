@@ -9,6 +9,8 @@ services:
     envVars:
       - key: OPENAI_API_KEY
         sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
       - key: AGENT_API_TOKEN
         generateValue: true
       - key: OPENAI_MODEL
