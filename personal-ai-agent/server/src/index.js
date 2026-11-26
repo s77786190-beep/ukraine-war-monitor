@@ -11,7 +11,31 @@ const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPE
 
 app.disable("x-powered-by");
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "256kb" }));
+
+// Простое ограничение частоты запросов защищает публичный API от случайных циклов
+// и примитивного перебора токена. Для нескольких экземпляров сервера нужен общий store.
+const requestBuckets = new Map();
+app.use("/v1", (req, res, next) => {
+  const key = req.ip || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const bucket = requestBuckets.get(key);
+  if (!bucket || now - bucket.startedAt >= 60_000) {
+    requestBuckets.set(key, { startedAt: now, count: 1 });
+  } else {
+    bucket.count += 1;
+    if (bucket.count > 30) {
+      res.set("Retry-After", String(Math.ceil((60_000 - (now - bucket.startedAt)) / 1000)));
+      return res.status(429).json({ error: "Слишком много запросов. Повторите позже." });
+    }
+  }
+  if (requestBuckets.size > 10_000) {
+    for (const [address, entry] of requestBuckets) {
+      if (now - entry.startedAt >= 60_000) requestBuckets.delete(address);
+    }
+  }
+  next();
+});
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "personal-ai-agent", aiConfigured: Boolean(client) });
@@ -28,7 +52,19 @@ app.use("/v1", (req, res, next) => {
 app.post("/v1/chat", async (req, res) => {
   const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
   const memory = typeof req.body?.memory === "string" ? req.body.memory.trim().slice(0, 12000) : "";
-  const history = Array.isArray(req.body?.history) ? req.body.history.slice(-20).filter(item => item && (item.role === "user" || item.role === "assistant") && typeof item.text === "string").map(item => ({ role: item.role, content: item.text.slice(0, 8000) })) : [];
+  const history = [];
+  if (Array.isArray(req.body?.history)) {
+    let historyChars = 0;
+    for (const item of req.body.history.slice(-20)) {
+      if (!item || (item.role !== "user" && item.role !== "assistant") || typeof item.text !== "string") continue;
+      const remaining = 40_000 - historyChars;
+      if (remaining <= 0) break;
+      const content = item.text.slice(0, Math.min(4_000, remaining));
+      if (!content) continue;
+      history.push({ role: item.role, content });
+      historyChars += content.length;
+    }
+  }
   if (!message) return res.status(400).json({ error: "Поле message обязательно." });
   if (message.length > 20000) return res.status(413).json({ error: "Сообщение слишком длинное (максимум 20 000 символов)." });
 
@@ -37,6 +73,7 @@ app.post("/v1/chat", async (req, res) => {
       model,
       tools: [{ type: "web_search", search_context_size: "high" }],
       tool_choice: "auto",
+      max_output_tokens: 4000,
       instructions: [
         "Ты — личный ИИ-агент пользователя.",
         "Отвечай на русском языке, если пользователь явно не попросил другой язык.",
