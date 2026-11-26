@@ -4,7 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
+import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioPlayer, useAudioRecorder, useAudioRecorderState } from "expo-audio";
+import { File, Paths } from "expo-file-system";
 
 const C = { bg: "#080808", panel: "#141414", panel2: "#1C1C1C", orange: "#FF861A", text: "#F4F4F4", muted: "#9A9A9A", line: "#303030", red: "#FF625C" };
 type Tab = "Чат" | "Задачи" | "Агенты" | "Память" | "Настройки";
@@ -26,10 +27,13 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [memory, setMemory] = useState("Пока нет сохранённых фактов.");
+  const [userInstructions, setUserInstructions] = useState("");
+  const [voice, setVoice] = useState<"george" | "daniel">("george");
+  const player = useAudioPlayer(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recordingState = useAudioRecorderState(recorder);
   useEffect(() => { (async () => {
-    const [m, e, mem, legacyToken] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken")]);
+    const [m, e, mem, legacyToken, instructions, savedVoice] = await Promise.all([AsyncStorage.getItem("chat"), AsyncStorage.getItem("endpoint"), AsyncStorage.getItem("memory"), AsyncStorage.getItem("apiToken"), AsyncStorage.getItem("userInstructions"), AsyncStorage.getItem("voice")]);
     let token = await SecureStore.getItemAsync("apiToken");
     if (!token && legacyToken) {
       await SecureStore.setItemAsync("apiToken", legacyToken);
@@ -48,7 +52,7 @@ export default function App() {
         setMessages([welcome]);
       }
     } else setMessages([welcome]);
-    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);
+    if (e) setEndpoint(e); if (mem) setMemory(mem); if (token) setApiToken(token);\n    if (instructions) setUserInstructions(instructions);\n    if (savedVoice === "daniel" || savedVoice === "george") setVoice(savedVoice);
   })().catch(() => Alert.alert("Ошибка", "Не удалось загрузить локальные данные.")); }, []);
   const persist = async (next: Message[]) => { setMessages(next); await AsyncStorage.setItem("chat", JSON.stringify(next)); };
   const send = async () => {
@@ -63,7 +67,7 @@ export default function App() {
     const controller = new AbortController();
     const requestTimeout = setTimeout(() => controller.abort(), 60000);
     try {
-      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, signal: controller.signal, body: JSON.stringify({ message: text, language: "ru", memory, history: messages.slice(-20).map(({ role, text }) => ({ role, text })) }) });
+      const response = await fetch(endpoint.replace(/\/$/, "") + "/v1/chat", { method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiToken }, signal: controller.signal, body: JSON.stringify({ message: text, language: "ru", memory, userInstructions, history: messages.slice(-20).map(({ role, text }) => ({ role, text })) }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "HTTP " + response.status);
       const answer = typeof data.reply === "string" ? data.reply : "Сервер вернул ответ в неизвестном формате.";
@@ -93,7 +97,7 @@ export default function App() {
       setBusy(true);
       const form = new FormData();
       form.append("file", { uri, name: "voice-message.m4a", type: "audio/mp4" } as any);
-      form.append("memory", memory);
+      form.append("memory", memory);\n      form.append("userInstructions", userInstructions);
       form.append("history", JSON.stringify(messages.slice(-20).map(({ role, text }) => ({ role, text }))));
       const controller = new AbortController();
       const uploadTimeout = setTimeout(() => controller.abort(), 120000);
@@ -157,20 +161,50 @@ export default function App() {
       Alert.alert("Нет соединения", "Настройки сохранены, но сервер недоступен: " + reason);
     } finally { clearTimeout(timeout); }
   };
+
+  const speak = async (text: string) => {
+    if (!endpoint.trim() || !apiToken.trim()) { Alert.alert("Нет подключения", "Сначала настройте сервер."); return; }
+    try {
+      const response = await fetch(endpoint.replace(/\\/$/, "") + "/v1/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiToken },
+        body: JSON.stringify({ text: text.slice(0, 4096), voice })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "HTTP " + response.status);
+      }
+      const file = new File(Paths.cache, "agent-speech-" + Date.now() + ".mp3");
+      file.create({ overwrite: true });
+      await file.write(new Uint8Array(await response.arrayBuffer()));
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      player.replace(file.uri);
+      player.play();
+    } catch (error) {
+      Alert.alert("Ошибка озвучивания", error instanceof Error ? error.message : String(error));
+    }
+  };
+  const savePreferences = async () => {
+    await Promise.all([
+      AsyncStorage.setItem("userInstructions", userInstructions.trim()),
+      AsyncStorage.setItem("voice", voice)
+    ]);
+    Alert.alert("Сохранено", "Инструкции и голос сохранены на устройстве.");
+  };
   const saveMemory = async () => { await AsyncStorage.setItem("memory", memory); Alert.alert("Сохранено", "Локальная заметка памяти сохранена."); };
   const clearChat = () => Alert.alert("Очистить историю?", "История чата будет удалена с этого устройства.", [{ text: "Отмена", style: "cancel" }, { text: "Удалить", style: "destructive", onPress: async () => { const welcome: Message = { id: "welcome-" + String(Date.now()), role: "assistant", text: "История очищена. Я — ваш личный ИИ-агент. Для обработки запросов подключите сервер в настройках.", time: now() }; await persist([welcome]); } }]);
   const tabs: Tab[] = ["Чат", "Задачи", "Агенты", "Память", "Настройки"];
   return <SafeAreaView style={s.safe}><StatusBar style="light" backgroundColor={C.bg} /><View style={s.header}><View><Text style={s.brand}>ЛИЧНЫЙ ИИ-АГЕНТ</Text><Text style={s.sub}>Локальный клиент · русский интерфейс</Text></View><View style={s.status}><View style={[s.dot, { backgroundColor: connected ? "#39C978" : C.orange }]} /><Text style={s.statusText}>{connected ? "СЕРВЕР ДОСТУПЕН" : endpoint ? "АДРЕС ЗАДАН" : "НЕ ПОДКЛЮЧЁН"}</Text></View></View>
   <View style={s.nav}>{tabs.map(t => <Pressable key={t} onPress={() => setTab(t)} style={[s.navItem, tab === t && s.navActive]}><Text style={[s.navText, tab === t && s.navTextActive]}>{t}</Text></Pressable>)}</View>
-  {tab === "Чат" && <KeyboardAvoidingView style={s.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView style={s.fill} contentContainerStyle={s.chat}>{messages.map(m => <View key={m.id} style={[s.bubble, m.role === "user" ? s.userBubble : s.aiBubble]}><Text style={s.role}>{m.role === "user" ? "ВЫ" : "АГЕНТ"} · {m.time}</Text><Text style={s.message}>{m.text}</Text></View>)}</ScrollView><View style={s.composer}><Pressable onPress={toggleVoiceMessage} disabled={busy} style={[s.voice, recordingState.isRecording && s.recording]}><Text style={s.voiceText}>{recordingState.isRecording ? "■" : "🎙"}</Text></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder={recordingState.isRecording ? "Запись идёт… нажмите ■ для отправки" : "Введите сообщение..."} placeholderTextColor={C.muted} multiline style={s.input} /><Pressable onPress={send} disabled={busy || recordingState.isRecording || !draft.trim()} style={[s.send, (busy || recordingState.isRecording || !draft.trim()) && s.disabled]}><Text style={s.sendText}>{busy ? "…" : "➤"}</Text></Pressable></View></KeyboardAvoidingView>}
+  {tab === "Чат" && <KeyboardAvoidingView style={s.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView style={s.fill} contentContainerStyle={s.chat}>{messages.map(m => <View key={m.id} style={[s.bubble, m.role === "user" ? s.userBubble : s.aiBubble]}><Text style={s.role}>{m.role === "user" ? "ВЫ" : "АГЕНТ"} · {m.time}</Text><Text style={s.message}>{m.text}</Text>{m.role === "assistant" && m.id !== "welcome" && <Pressable onPress={() => speak(m.text)} style={s.speak}><Text style={s.speakText}>▶ Озвучить · {voice === "george" ? "Джордж" : "Дэниел"}</Text></Pressable>}</View>)}</ScrollView><View style={s.composer}><Pressable onPress={toggleVoiceMessage} disabled={busy} style={[s.voice, recordingState.isRecording && s.recording]}><Text style={s.voiceText}>{recordingState.isRecording ? "■" : "🎙"}</Text></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder={recordingState.isRecording ? "Запись идёт… нажмите ■ для отправки" : "Введите сообщение..."} placeholderTextColor={C.muted} multiline style={s.input} /><Pressable onPress={send} disabled={busy || recordingState.isRecording || !draft.trim()} style={[s.send, (busy || recordingState.isRecording || !draft.trim()) && s.disabled]}><Text style={s.sendText}>{busy ? "…" : "➤"}</Text></Pressable></View></KeyboardAvoidingView>}
   {tab === "Задачи" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Задачи</Text><Text style={s.note}>Здесь будут фоновые поручения, очередь выполнения, этапы, журнал и уведомления. Серверный исполнитель ещё не развёрнут — фиктивные статусы не показываются.</Text><Panel title="Состояние очереди" value="Нет подключённого исполнителя" /></ScrollView>}
   {tab === "Агенты" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Специализированные агенты</Text><Text style={s.note}>Архитектура предусматривает подключаемые роли и инструменты. Каталог станет активным после запуска backend и реестра модулей.</Text>{["Поиск и проверка источников","Разработка приложений","Работа с файлами","Мультимедиа","Управление Android"].map(x => <Panel key={x} title={x} value="Не подключён" />)}</ScrollView>}
   {tab === "Память" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Память</Text><Text style={s.note}>Пока это локальная заметка на устройстве, не полноценная долговременная память агента.</Text><TextInput value={memory} onChangeText={setMemory} multiline style={s.textarea} placeholderTextColor={C.muted} /><Action label="Сохранить заметку" onPress={saveMemory} /></ScrollView>}
-  {tab === "Настройки" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Подключение</Text><Text style={s.note}>Укажите HTTPS-адрес серверного API. Ключи моделей в APK не хранятся.</Text><Text style={s.label}>Адрес backend</Text><TextInput value={endpoint} onChangeText={setEndpoint} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ваш-сервер.example" placeholderTextColor={C.muted} style={s.field} /><Text style={s.label}>Токен доступа к серверу</Text><TextInput value={apiToken} onChangeText={setApiToken} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="AGENT_API_TOKEN" placeholderTextColor={C.muted} style={s.field} /><Action label="Сохранить подключение" onPress={saveEndpoint} /><View style={s.separator} /><Text style={s.h1}>Данные</Text><Action label="Очистить историю чата" onPress={clearChat} danger /><Text style={s.footer}>Версия клиента 0.1.0 · Все подписи и системные сообщения приложения — на русском языке.</Text></ScrollView>}
+  {tab === "Настройки" && <ScrollView contentContainerStyle={s.page}><Text style={s.h1}>Подключение</Text><Text style={s.note}>Укажите HTTPS-адрес серверного API. Ключи моделей в APK не хранятся.</Text><Text style={s.label}>Адрес backend</Text><TextInput value={endpoint} onChangeText={setEndpoint} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ваш-сервер.example" placeholderTextColor={C.muted} style={s.field} /><Text style={s.label}>Токен доступа к серверу</Text><TextInput value={apiToken} onChangeText={setApiToken} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="AGENT_API_TOKEN" placeholderTextColor={C.muted} style={s.field} /><Action label="Сохранить подключение" onPress={saveEndpoint} /><View style={s.separator} /><Text style={s.h1}>Голос агента</Text><Text style={s.note}>Только мужские голоса. Низкая подача, ровная интонация, минимум эмоциональных колебаний.</Text><View style={s.voiceChoices}><Pressable onPress={() => setVoice("george")} style={[s.voiceChoice, voice === "george" && s.voiceChoiceActive]}><Text style={[s.voiceChoiceText, voice === "george" && s.voiceChoiceTextActive]}>Джордж · низкий повествовательный</Text></Pressable><Pressable onPress={() => setVoice("daniel")} style={[s.voiceChoice, voice === "daniel" && s.voiceChoiceActive]}><Text style={[s.voiceChoiceText, voice === "daniel" && s.voiceChoiceTextActive]}>Дэниел · сдержанный, авторитетный</Text></Pressable></View><Text style={s.note}>Голос генерируется через ElevenLabs. Для работы нужно добавить ELEVENLABS_API_KEY в секреты сервера.</Text><View style={s.separator} /><Text style={s.h1}>Мои инструкции агенту</Text><Text style={s.note}>Запишите, что делать и чего не делать, как отвечать, какой стиль соблюдать. Инструкции сохраняются локально и передаются с запросами.</Text><TextInput value={userInstructions} onChangeText={setUserInstructions} multiline style={s.textarea} placeholder="Например: говори только по-русски; отвечай кратко, но исчерпывающе; не перебивай; не льсти; проверяй факты; не соглашайся автоматически..." placeholderTextColor={C.muted} /><Action label="Сохранить голос и инструкции" onPress={savePreferences} /><View style={s.separator} /><Text style={s.h1}>Данные</Text><Action label="Очистить историю чата" onPress={clearChat} danger /><Text style={s.footer}>Версия клиента 0.1.0 · Все подписи и системные сообщения приложения — на русском языке.</Text></ScrollView>}
   </SafeAreaView>;
 }
 function Panel({title, value}: {title:string; value:string}) { return <View style={s.panel}><Text style={s.panelTitle}>{title}</Text><Text style={s.panelValue}>{value}</Text></View>; }
 function Action({label,onPress,danger=false}:{label:string;onPress:()=>void;danger?:boolean}) { return <Pressable onPress={onPress} style={[s.action,danger&&s.danger]}><Text style={s.actionText}>{label}</Text></Pressable>; }
 const s = StyleSheet.create({
- safe:{flex:1,backgroundColor:C.bg,paddingTop:10,paddingBottom:10},fill:{flex:1},header:{paddingHorizontal:18,paddingTop:12,paddingBottom:15,flexDirection:"row",justifyContent:"space-between",alignItems:"center"},brand:{color:C.orange,fontSize:17,fontWeight:"900",letterSpacing:1.4},sub:{color:C.muted,fontSize:11,marginTop:4},status:{alignItems:"flex-end",gap:5},dot:{width:8,height:8,borderRadius:8},statusText:{color:C.muted,fontSize:9,fontWeight:"700"},nav:{flexDirection:"row",borderTopWidth:1,borderBottomWidth:1,borderColor:C.line,justifyContent:"space-around"},navItem:{paddingVertical:13,paddingHorizontal:5,borderBottomWidth:2,borderBottomColor:"transparent"},navActive:{borderBottomColor:C.orange},navText:{color:C.muted,fontSize:11,fontWeight:"600"},navTextActive:{color:C.orange},chat:{padding:14,gap:12},bubble:{maxWidth:"90%",padding:13,borderRadius:13},userBubble:{alignSelf:"flex-end",backgroundColor:"#332012",borderWidth:1,borderColor:"#744017"},aiBubble:{alignSelf:"flex-start",backgroundColor:C.panel,borderWidth:1,borderColor:C.line},role:{color:C.orange,fontSize:9,fontWeight:"800",marginBottom:7},message:{color:C.text,fontSize:14,lineHeight:21},composer:{flexDirection:"row",alignItems:"flex-end",gap:9,padding:12,borderTopWidth:1,borderColor:C.line},voice:{width:46,height:46,backgroundColor:C.panel2,borderWidth:1,borderColor:C.orange,borderRadius:12,alignItems:"center",justifyContent:"center"},recording:{backgroundColor:"#551A16",borderColor:C.red},voiceText:{color:C.orange,fontSize:18,fontWeight:"900"},input:{flex:1,minHeight:46,maxHeight:120,backgroundColor:C.panel2,color:C.text,borderRadius:12,paddingHorizontal:13,paddingVertical:10,fontSize:14},send:{width:46,height:46,backgroundColor:C.orange,borderRadius:12,alignItems:"center",justifyContent:"center"},sendText:{color:"#111",fontSize:20,fontWeight:"900"},disabled:{opacity:.4},page:{padding:18,gap:14},h1:{color:C.text,fontSize:23,fontWeight:"800",marginBottom:3},note:{color:C.muted,fontSize:13,lineHeight:20,marginBottom:5},panel:{backgroundColor:C.panel,padding:15,borderRadius:12,borderWidth:1,borderColor:C.line,gap:7},panelTitle:{color:C.text,fontWeight:"700",fontSize:14},panelValue:{color:C.orange,fontSize:12},textarea:{minHeight:150,backgroundColor:C.panel,color:C.text,borderRadius:12,padding:13,textAlignVertical:"top",borderWidth:1,borderColor:C.line},action:{backgroundColor:C.orange,padding:14,borderRadius:11,alignItems:"center"},danger:{backgroundColor:"#3A1715",borderWidth:1,borderColor:C.red},actionText:{color:"#111",fontWeight:"800"},label:{color:C.orange,fontSize:12,fontWeight:"700"},field:{backgroundColor:C.panel,color:C.text,padding:14,borderRadius:10,borderWidth:1,borderColor:C.line},separator:{height:1,backgroundColor:C.line,marginVertical:10},footer:{color:C.muted,fontSize:11,lineHeight:17,marginTop:10}
+ safe:{flex:1,backgroundColor:C.bg,paddingTop:10,paddingBottom:10},fill:{flex:1},header:{paddingHorizontal:18,paddingTop:12,paddingBottom:15,flexDirection:"row",justifyContent:"space-between",alignItems:"center"},brand:{color:C.orange,fontSize:17,fontWeight:"900",letterSpacing:1.4},sub:{color:C.muted,fontSize:11,marginTop:4},status:{alignItems:"flex-end",gap:5},dot:{width:8,height:8,borderRadius:8},statusText:{color:C.muted,fontSize:9,fontWeight:"700"},nav:{flexDirection:"row",borderTopWidth:1,borderBottomWidth:1,borderColor:C.line,justifyContent:"space-around"},navItem:{paddingVertical:13,paddingHorizontal:5,borderBottomWidth:2,borderBottomColor:"transparent"},navActive:{borderBottomColor:C.orange},navText:{color:C.muted,fontSize:11,fontWeight:"600"},navTextActive:{color:C.orange},chat:{padding:14,gap:12},bubble:{maxWidth:"90%",padding:13,borderRadius:13},userBubble:{alignSelf:"flex-end",backgroundColor:"#332012",borderWidth:1,borderColor:"#744017"},aiBubble:{alignSelf:"flex-start",backgroundColor:C.panel,borderWidth:1,borderColor:C.line},role:{color:C.orange,fontSize:9,fontWeight:"800",marginBottom:7},message:{color:C.text,fontSize:14,lineHeight:21},composer:{flexDirection:"row",alignItems:"flex-end",gap:9,padding:12,borderTopWidth:1,borderColor:C.line},voice:{width:46,height:46,backgroundColor:C.panel2,borderWidth:1,borderColor:C.orange,borderRadius:12,alignItems:"center",justifyContent:"center"},recording:{backgroundColor:"#551A16",borderColor:C.red},voiceText:{color:C.orange,fontSize:18,fontWeight:"900"},input:{flex:1,minHeight:46,maxHeight:120,backgroundColor:C.panel2,color:C.text,borderRadius:12,paddingHorizontal:13,paddingVertical:10,fontSize:14},send:{width:46,height:46,backgroundColor:C.orange,borderRadius:12,alignItems:"center",justifyContent:"center"},sendText:{color:"#111",fontSize:20,fontWeight:"900"},disabled:{opacity:.4},page:{padding:18,gap:14},h1:{color:C.text,fontSize:23,fontWeight:"800",marginBottom:3},note:{color:C.muted,fontSize:13,lineHeight:20,marginBottom:5},panel:{backgroundColor:C.panel,padding:15,borderRadius:12,borderWidth:1,borderColor:C.line,gap:7},panelTitle:{color:C.text,fontWeight:"700",fontSize:14},panelValue:{color:C.orange,fontSize:12},speak:{marginTop:10,paddingTop:8,borderTopWidth:1,borderTopColor:C.line},speakText:{color:C.orange,fontSize:11,fontWeight:"700"},voiceChoices:{gap:8},voiceChoice:{padding:12,borderRadius:10,borderWidth:1,borderColor:C.line,backgroundColor:C.panel},voiceChoiceActive:{borderColor:C.orange,backgroundColor:"#332012"},voiceChoiceText:{color:C.muted,fontSize:13},voiceChoiceTextActive:{color:C.orange,fontWeight:"800"},textarea:{minHeight:150,backgroundColor:C.panel,color:C.text,borderRadius:12,padding:13,textAlignVertical:"top",borderWidth:1,borderColor:C.line},action:{backgroundColor:C.orange,padding:14,borderRadius:11,alignItems:"center"},danger:{backgroundColor:"#3A1715",borderWidth:1,borderColor:C.red},actionText:{color:"#111",fontWeight:"800"},label:{color:C.orange,fontSize:12,fontWeight:"700"},field:{backgroundColor:C.panel,color:C.text,padding:14,borderRadius:10,borderWidth:1,borderColor:C.line},separator:{height:1,backgroundColor:C.line,marginVertical:10},footer:{color:C.muted,fontSize:11,lineHeight:17,marginTop:10}
 });
