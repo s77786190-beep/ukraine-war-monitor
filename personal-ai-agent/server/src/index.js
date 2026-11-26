@@ -1,0 +1,56 @@
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import OpenAI from "openai";
+
+const app = express();
+const port = Number(process.env.PORT || 8080);
+const model = process.env.OPENAI_MODEL || "gpt-6.2-astra";
+const apiToken = process.env.AGENT_API_TOKEN;
+const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+app.disable("x-powered-by");
+app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
+app.use(express.json({ limit: "2mb" }));
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, service: "personal-ai-agent", aiConfigured: Boolean(client) });
+});
+
+app.use("/v1", (req, res, next) => {
+  if (!apiToken) return res.status(503).json({ error: "Сервер не настроен: отсутствует AGENT_API_TOKEN." });
+  const supplied = req.get("authorization") || "";
+  if (supplied !== `Bearer ${apiToken}`) return res.status(401).json({ error: "Требуется авторизация." });
+  if (!client) return res.status(503).json({ error: "Сервер не настроен: отсутствует OPENAI_API_KEY." });
+  next();
+});
+
+app.post("/v1/chat", async (req, res) => {
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!message) return res.status(400).json({ error: "Поле message обязательно." });
+  if (message.length > 20000) return res.status(413).json({ error: "Сообщение слишком длинное (максимум 20 000 символов)." });
+
+  try {
+    const response = await client.responses.create({
+      model,
+      tools: [{ type: "web_search", search_context_size: "high" }],
+      tool_choice: "auto",
+      instructions: [
+        "Ты — личный ИИ-агент пользователя.",
+        "Отвечай на русском языке, если пользователь явно не попросил другой язык.",
+        "Будь кратким, точным, прямолинейным; не льсти и не выдумывай выполненные действия.",
+        "Для актуальных фактов используй веб-поиск и приводи ссылки на источники.",
+        "Чётко отделяй подтверждённые факты от предположений. Если инструмент или действие недоступны — скажи об этом прямо."
+      ].join("\n"),
+      input: message
+    });
+    res.json({ reply: response.output_text || "Модель не вернула текстовый ответ.", responseId: response.id });
+  } catch (error) {
+    console.error("OpenAI request failed:", error?.message || error);
+    res.status(502).json({ error: "Не удалось получить ответ от ИИ-сервиса." });
+  }
+});
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Personal AI Agent API listening on :${port}`);
+});
