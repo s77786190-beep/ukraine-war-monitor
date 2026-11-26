@@ -62,7 +62,32 @@ export default function App() {
       await persist([...next, { id: String(Date.now() + 3), role: "assistant", text: reason + " Сообщение сохранено локально.", time: now() }]);
     } finally { clearTimeout(requestTimeout); setBusy(false); }
   };
-  const saveEndpoint = async () => { const url = endpoint.trim().replace(/\/$/, ""); await Promise.all([AsyncStorage.setItem("endpoint", url), AsyncStorage.setItem("apiToken", apiToken.trim())]); setEndpoint(url); setConnected(false); if (!url) { Alert.alert("Адрес не указан", "Введите HTTPS-адрес backend."); return; } const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10000); try { const r = await fetch(url + "/health", { signal: controller.signal }); if (!r.ok) throw new Error("HTTP " + r.status); const h = await r.json(); setConnected(true); Alert.alert("Сервер доступен", h.aiConfigured ? "Соединение установлено. ИИ-сервис настроен." : "Соединение установлено, но OPENAI_API_KEY на сервере не задан."); } catch (e) { const reason = e instanceof Error && e.name === "AbortError" ? "Проверка соединения превысила 10 секунд." : String(e); Alert.alert("Нет соединения", "Настройки сохранены, но сервер недоступен: " + reason); } finally { clearTimeout(timeout); } };
+  const saveEndpoint = async () => {
+    const url = endpoint.trim().replace(/\/$/, "");
+    setConnected(false);
+    if (!url) { Alert.alert("Адрес не указан", "Введите HTTPS-адрес backend."); return; }
+    let parsed: URL;
+    try { parsed = new URL(url); } catch { Alert.alert("Некорректный адрес", "Введите полный адрес сервера, например https://server.example."); return; }
+    if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) {
+      Alert.alert("Небезопасный адрес", "Разрешены только корректные HTTPS-адреса без логина и пароля."); return;
+    }
+    if (!apiToken.trim()) { Alert.alert("Нет токена", "Введите AGENT_API_TOKEN для доступа к серверу."); return; }
+    await Promise.all([AsyncStorage.setItem("endpoint", url), AsyncStorage.setItem("apiToken", apiToken.trim())]);
+    setEndpoint(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const r = await fetch(url + "/health", { signal: controller.signal });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const h = await r.json();
+      setConnected(true);
+      Alert.alert("Сервер доступен", h.aiConfigured ? "Соединение установлено. ИИ-сервис настроен." : "Соединение установлено, но OPENAI_API_KEY на сервере не задан.");
+    } catch (e) {
+      setConnected(false);
+      const reason = e instanceof Error && e.name === "AbortError" ? "Проверка соединения превысила 10 секунд." : String(e);
+      Alert.alert("Нет соединения", "Настройки сохранены, но сервер недоступен: " + reason);
+    } finally { clearTimeout(timeout); }
+  };
   const saveMemory = async () => { await AsyncStorage.setItem("memory", memory); Alert.alert("Сохранено", "Локальная заметка памяти сохранена."); };
   const clearChat = () => Alert.alert("Очистить историю?", "История чата будет удалена с этого устройства.", [{ text: "Отмена", style: "cancel" }, { text: "Удалить", style: "destructive", onPress: async () => { const welcome: Message = { id: "welcome-" + String(Date.now()), role: "assistant", text: "История очищена. Я — ваш личный ИИ-агент. Для обработки запросов подключите сервер в настройках.", time: now() }; await persist([welcome]); } }]);
   const tabs: Tab[] = ["Чат", "Задачи", "Агенты", "Память", "Настройки"];
