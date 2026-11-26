@@ -27,6 +27,10 @@ jobs:
           java-version: "17"
       - name: Подготовить Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+      - name: Установить Android platform-tools
+        run: sdkmanager "platform-tools" "platforms;android-36"
       - name: Установить зависимости
         run: npm install
       - name: Проверить TypeScript
